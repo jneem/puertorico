@@ -1,33 +1,46 @@
 package puertorico
-import scala.collection.mutable.MutableList
+import scala.collection.mutable.HashMap
 
 class IslandState {
   val size: Int = 12
-  var plantationCount = GoodBundle.empty
-  var colonistCount = GoodBundle.empty
-  var quarryCount: Int = 0
-  var quarryColonistCount: Int = 0
+  val plantations = PlantationBundle.empty
+  val colonistsPlantation = PlantationBundle.empty
 
-  def spaceRemaining: Int = size - plantationCount.sum - quarryCount
+  def spaceRemaining: Int = size - plantations.sum
+  def colonistsMax = plantations.sum
+  def colonistsUsed = colonistsPlantation.sum
 }
+
+
+class BuildingBundle[T <: Building] {
+  val buildingMap = new HashMap[T, Int]
+  def spaceUsed = (buildingMap.keys.toList map (_.size)).sum
+  def colonistsUsed = buildingMap.values.sum
+  def colonistsMax = (buildingMap.keys.toList map (_.colonistsMax)).sum
+}
+
 
 class BuildingState {
   val size: Int = 12
-  val productionBuildings = new MutableList[(ProductionBuilding, Int)]
-  val purpleBuildings = new MutableList[(PurpleBuilding, Int)]
+  val productionBuildings = new BuildingBundle[ProductionBuilding]
+  val purpleBuildings = new BuildingBundle[PurpleBuilding]
   
-  def spaceUsed = (productionBuildings map (_._1.size)).sum + (purpleBuildings map (_._1.size)).sum
+  def spaceUsed = productionBuildings.spaceUsed + purpleBuildings.spaceUsed
   def spaceRemaining = size - spaceUsed
+
+  /**
+   * Tally active production by good type.
+   */
   def productionBundle: GoodBundle = {
     var pbundle = GoodBundle.empty
-    productionBuildings foreach {
+    productionBuildings.buildingMap foreach {
       case (building, colonists) => pbundle(building.good) += colonists
     }
     pbundle
   }
 
-  def colonistsMax = (productionBuildings map (_._1.colonistsMax)).sum + purpleBuildings.size
-  def colonistsUsed = (productionBuildings map (_._2)).sum + (purpleBuildings map (_._2)).sum
+  def colonistsMax = productionBuildings.colonistsMax + purpleBuildings.colonistsMax
+  def colonistsUsed = productionBuildings.colonistsUsed + purpleBuildings.colonistsUsed
   def colonistsNeeded = colonistsMax - colonistsUsed
 }
 
@@ -39,5 +52,10 @@ class PlayerState {
 
   var victoryPoints = 0
   var doubloons = 0
-  var spareColonists = 0 // colonists in San Juan
+  var colonistsSpare = 0 // colonists in San Juan
+
+  def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax 
+  def colonistsUsed = island.colonistsUsed + buildings.colonistsUsed
+  
 }
+

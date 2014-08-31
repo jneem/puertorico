@@ -16,9 +16,9 @@ class BuildingStateTest extends FlatSpec {
     assert(bs.colonistsUsed === 0)
     assert(bs.colonistsNeeded === 0)
 
-    bs.productionBuildings += ((BigSugar, 2))
-    bs.productionBuildings += ((SmallIndigo, 1))
-    bs.productionBuildings += ((SmallSugar, 1))
+    bs.productionBuildings.buildingMap += ((BigSugar, 2))
+    bs.productionBuildings.buildingMap += ((SmallIndigo, 1))
+    bs.productionBuildings.buildingMap += ((SmallSugar, 1))
     
     assert(bs.spaceUsed === 3)
     assert(bs.spaceRemaining === 9)
@@ -26,7 +26,7 @@ class BuildingStateTest extends FlatSpec {
     assert(bs.colonistsUsed === 4)
     assert(bs.colonistsNeeded === 1)
 
-    bs.purpleBuildings += ((SmallMarket, 0))
+    bs.purpleBuildings.buildingMap += ((SmallMarket, 0))
     assert(bs.spaceUsed === 4)
     assert(bs.colonistsMax === 6)
     assert(bs.colonistsUsed === 4)
