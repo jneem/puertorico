@@ -266,7 +266,6 @@ package object puertorico {
   class Ship(val size: Int) {
     private var _good: Option[Good] = None
     def good = _good
-
     private var _spaceUsed: Int = 0
     def spaceUsed = _spaceUsed
 

@@ -1,4 +1,5 @@
 package puertorico
+import akka.actor._
 
 
 //RoleManager and Player conversation
@@ -8,7 +9,7 @@ case class RoleChosen(role: Role)
 
 //RoleManager and RoleActors conversation
 
-case object BeginAction
+case class BeginAction(player: ActorRef)
 case object EndAction
 
 //Craftsman and Player conversation

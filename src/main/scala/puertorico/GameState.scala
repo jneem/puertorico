@@ -33,6 +33,9 @@ class GameState {
   val plantationsMax = new PlantationBundle(5,24,24,24,24,24)
   val goodsRemain = new GoodBundle(7,7,7,7,7)
 
+  //List all goods
+  val goodsAll = List[Good](Corn, Indigo, Sugar, Tobacco, Coffee)
+
   //List all buildings and buildings remaining
 
   val buildingsAll: Map[Building, Int] = Map(
@@ -52,7 +55,7 @@ class GameState {
 
   //Logic functions (Rule check)
   def isEndGame: Boolean = {
-    colonistsLeft == 0 || 
+    colonistsLeft == 0 ||
     victoryPointsLeft == 0 || 
     playerOne.buildings.spaceRemaining == 0 ||
     playerTwo.buildings.spaceRemaining == 0
@@ -68,10 +71,33 @@ class GameState {
   def resetRoles = rolesDoubloons.keys foreach {
     role => rolesDoubloons(role) += 1
   }
+  def nextPlayerPickRoles = {
+    val tmp = currentPlayer
+    currentPlayer = otherPlayer
+    otherPlayer = tmp
+    rolePicker = currentPlayer
+    //start new round if needed
+    val rolesRemain = rolesDoubloons.count(_._2 == -1)
+    if (rolesRemain < 3){
+      resetRoles
+      governor = currentPlayer
+    }
+  }
 
   //Craftsman logic
   def canGetGood(good: Good): Boolean = 
     currentPlayer.productionBundle(good) > 0 && goodsRemain(good) > 0
+  
+  def craft = goodsAll foreach {
+    good => { 
+      val p1produce = currentPlayer.productionBundle(good) min goodsRemain(good)
+      currentPlayer.goods(good) += p1produce
+      goodsRemain(good) -= p1produce
+      val p2produce = otherPlayer.productionBundle(good) min goodsRemain(good)
+      otherPlayer.goods(good) += p2produce
+      goodsRemain(good) -= p2produce
+    }
+  }
 
   //Trader logic
   def canTradeGood(good: Good): Boolean = 
