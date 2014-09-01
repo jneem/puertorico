@@ -88,6 +88,7 @@ package object puertorico {
     }
 
     def sum: Int = corn + indigo + sugar + tobacco + coffee + quarry
+    def goodsOnly: GoodBundle = GoodBundle(corn, indigo, sugar, tobacco, coffee)
   }
 
   object PlantationBundle {
@@ -158,29 +159,137 @@ package object puertorico {
     val victoryPoints = 1
     val description = "Unfinished Poohead"
   }
-  case object BigIndigo extends UnfinishedBuilding
-  case object Hacienda extends UnfinishedBuilding
-  case object SmallWarehouse extends UnfinishedBuilding
-  case object BigWarehouse extends UnfinishedBuilding
-  case object ConstructionHut extends UnfinishedBuilding
-  case object Office extends UnfinishedBuilding
-  case object BigCoffee extends UnfinishedBuilding
-  case object BigTobacco extends UnfinishedBuilding
-  case object Hospice extends UnfinishedBuilding
-  case object University extends UnfinishedBuilding
-  case object Wharf extends UnfinishedBuilding
-  case object Harbor extends UnfinishedBuilding
-  case object TownHall extends UnfinishedBuilding
-  case object CustomHouse extends UnfinishedBuilding
-  case object Residence extends UnfinishedBuilding
-  case object GuildHall extends UnfinishedBuilding
-  case object Fortress extends UnfinishedBuilding
+  case object BigIndigo extends ProductionBuilding {
+    val cost = 3
+    val victoryPoints = 2
+    val good = Indigo
+    override val colonistsMax = 3
+    val description = "Produces lots of indigo"
+  }
+
+  case object Hacienda extends PurpleBuilding {
+    val cost = 2
+    val victoryPoints = 1
+    val description = "Gives one random plantation in settler round"
+  }
+
+  case object SmallWarehouse extends PurpleBuilding {
+    val cost = 3
+    val victoryPoints = 1
+    val description = "Stores one type of good at the end of captain round"
+  }
+
+  case object BigWarehouse extends PurpleBuilding {
+    val cost = 5
+    val victoryPoints = 2
+    val description = "Stores two types of good at the end of captain round"
+  }
+
+  case object ConstructionHut extends PurpleBuilding {
+    val cost = 2
+    val victoryPoints = 1
+    val description = "Can choose quarry over plantation in settler round"
+  }
+
+  case object Office extends PurpleBuilding {
+    val cost = 5
+    val victoryPoints = 2
+    val description = "Can trade in any type of good"
+  }
+
+  case object BigCoffee extends ProductionBuilding {
+    val cost = 6
+    val victoryPoints = 3
+    val good = Coffee
+    override val colonistsMax = 2
+    val description = "Produces coffee"
+  }
+  case object BigTobacco extends ProductionBuilding {
+    val cost = 5
+    val victoryPoints = 3
+    val good = Tobacco
+    override val colonistsMax = 3
+    val description = "Produces tobacco"
+  }
+  case object Hospice extends PurpleBuilding {
+    val cost = 4
+    val victoryPoints = 2
+    val description = "One extra colonist in settler round"
+  }
+
+  case object University extends PurpleBuilding {
+    val cost = 7
+    val victoryPoints = 3
+    val description = "One extra colonist in builder round"
+  }
+  case object Wharf extends PurpleBuilding {
+    val cost = 9
+    val victoryPoints = 3
+    val description = "Private ship"
+  }
+
+  case object Harbor extends PurpleBuilding{
+    val cost = 8
+    val victoryPoints = 3
+    val description = "Gives one extra victory points per load"
+  }
+
+  case object TownHall extends PurpleBuilding {
+    val cost = 10
+    val victoryPoints = 4
+    val description = "4 points per purple building"
+  }
+
+  case object CustomHouse extends PurpleBuilding {
+    val cost = 10
+    val victoryPoints = 4
+    val description = "4 points per victory points"
+  }
+  case object Residence extends PurpleBuilding {
+    val cost = 10
+    val victoryPoints = 4
+    val description = "4/5/6/7 points for occupied island space <9/10/11/12"
+  }
+
+  case object GuildHall extends PurpleBuilding {
+    val cost = 10
+    val victoryPoints = 4
+    val description = "1 point per small production, 2 points per big production building"
+  }
+  case object Fortress extends PurpleBuilding {
+    val cost = 10
+    val victoryPoints = 4
+    val description = "1 point per 3 colonists"
+  }
   // Data structures related to ships.
 
   class Ship(val size: Int) {
-    var good: Option[Good] = None
-    var spaceUsed: Int = 0
+    private var _good: Option[Good] = None
+    def good = _good
+
+    private var _spaceUsed: Int = 0
+    def spaceUsed = _spaceUsed
+
     def spaceRemaining: Int = size - spaceUsed
+
+    /**
+     * The maximum amount of the given good that can be loaded.
+     */
+    def maxLoadable(loadGood: Good): Int = good match {
+      case Some(g) => if (g == loadGood) spaceRemaining else 0
+      case None => spaceRemaining
+    }
+
+    def clear: Unit = {
+      _good = None
+      _spaceUsed = 0
+    }
+
+    def load(loadGood: Good, quantity: Int): Unit = {
+      // TODO: if it is an invalid load, log an error
+      _good = Some(loadGood)
+      _spaceUsed += quantity
+    }
   }
 
   trait Role
@@ -191,8 +300,6 @@ package object puertorico {
   case object Settler extends Role
   case object Builder extends Role
   case object Trader extends Role
-
-
 
 }
 

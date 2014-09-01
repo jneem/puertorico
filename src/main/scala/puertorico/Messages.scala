@@ -25,7 +25,7 @@ case object SelectColonist //common to Settler
 case object ColonistSelected
 case object RearrangeColonists
 case class ColonistsRearranged(colonistsPlantation: PlantationBundle, 
-  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)]) 
+  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)], colonistsSpare: Int) 
 
 //Trader and Player conversation
 case object SelectGoodToTrade

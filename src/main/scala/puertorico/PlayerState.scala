@@ -9,6 +9,11 @@ class IslandState {
   def spaceRemaining: Int = size - plantations.sum
   def colonistsMax = plantations.sum
   def colonistsUsed = colonistsPlantation.sum
+
+  /**
+   * Tally active production of raw materials by good type
+   */
+  def productionRawBundle: GoodBundle = colonistsPlantation.goodsOnly
 }
 
 
@@ -41,7 +46,18 @@ class BuildingState {
 
   def colonistsMax = productionBuildings.colonistsMax + purpleBuildings.colonistsMax
   def colonistsUsed = productionBuildings.colonistsUsed + purpleBuildings.colonistsUsed
-  def colonistsNeeded = colonistsMax - colonistsUsed
+  def colonistsNeeded = 0 max (colonistsMax - colonistsUsed)
+
+  def hasActiveBuilding(b: Building): Boolean = b match {
+    case (x: ProductionBuilding) => productionBuildings.buildingMap(x) > 0
+    case (x: PurpleBuilding) => purpleBuildings.buildingMap(x) > 0
+  }
+
+  def hasBuilding(b: Building): Boolean = b match {
+    case (x: ProductionBuilding) => productionBuildings.buildingMap.contains(x)
+    case (x: PurpleBuilding) => purpleBuildings.buildingMap.contains(x)
+  }
+    
 }
 
 
@@ -56,6 +72,16 @@ class PlayerState {
 
   def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax 
   def colonistsUsed = island.colonistsUsed + buildings.colonistsUsed
-  
+
+  /**
+   * Tally active production by good type.
+   */
+  def productionBundle = GoodBundle(
+    island.productionRawBundle(Corn), island.productionRawBundle(Indigo) min buildings.productionBundle(Indigo), island.productionRawBundle(Sugar) min buildings.productionBundle(Sugar), island.productionRawBundle(Tobacco) min buildings.productionBundle(Tobacco), island.productionRawBundle(Coffee) min buildings.productionBundle(Coffee)
+    )
+
+  def hasBuilding(b: Building): Boolean = buildings.hasBuilding(b)
+  def hasActiveBuilding(b: Building): Boolean = buildings.hasActiveBuilding(b)
+
 }
 
