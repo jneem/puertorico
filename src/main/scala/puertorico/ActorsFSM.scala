@@ -5,17 +5,30 @@ import scala.collection.immutable.HashMap
 
 sealed trait State
 case object RoleProcess extends State
-case object ProspectProcess extends State
 case object CraftsmanProcess extends State
 case object SettlerProcess extends State
+case object TraderProcess extends State
+case object MayorProcess extends State
+case object CaptainProcess extends State
+case object BuilderProcess extends State
 
 sealed trait Data
 case class DoOnce(playerMane: ActorRef) extends Data
-case class DoOnceEach(playerList: List[ActorRef]) extends Data
+case class DoOnceEach(playerManeList: List[ActorRef]) extends Data
 case class DoOnceUntilSuccess(playerSet: Set[ActorRef]) extends Data
-case class DoUntilSuccess(playerList: List[ActorRef]) extends Data
+case class DoUntilSuccess(playerManeList: List[ActorRef]) extends Data
 
 case object GameStateQuery
+
+
+/**
+  * Manages the game, implemented as a finite state machine
+  * Has the true copy of gameState
+  * The players maintain their own version of gameState locally, which get synced with RoleBoss' by 
+  * message passing.
+  * RoleBoss sends out gameState everytime it asks player to choose a role. 
+  * TODO: may write a container version called gameData, to minimize amount of data passed around
+  */
 
 class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor with FSM[State,Data] {
 
@@ -24,6 +37,8 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
   //map PlayerState to their actors
   val stateToMane = HashMap[PlayerState, ActorRef]((gameState.playerOne, playerOneMane), (gameState.playerTwo, playerTwoMane))
 
+  def playerManeOrder = List(stateToMane(gameState.currentPlayer), stateToMane(gameState.otherPlayer))
+
   def getNextRolePicker = {
     gameState.nextPlayerPickRoles
     val nextPlayerMane = stateToMane(gameState.rolePicker)
@@ -31,58 +46,197 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
     nextPlayerMane
   }
 
-  def giveRolePickerCard(role: Role){
-      gameState.rolePicker.doubloons += gameState.rolesDoubloons(role)
-      gameState.rolesDoubloons(role) = -1
+  def endRole = goto(RoleProcess) using DoOnce(getNextRolePicker)
+  
+  //determines the message to send to the second player in Settler phase
+  def secondSettler = {
+    gameState.considerNextPlayer
+    if (gameState.canAccomodatePlantation) {
+      val pl = stateToMane(gameState.currentPlayer)
+      if (gameState.canGetPlantationExtra) 
+        pl ! SelectPlantationExtra
+      else
+        pl ! SelectPlantation
+      goto(SettlerProcess) using DoOnce(pl)
+    } else {
+      //TODO: regenerate the plantation tiles
+      endRole
+    }
+  }
+
+  def secondTrader = {
+    gameState.considerNextPlayer
+    if (gameState.canTradeAnyGood) {
+      val pl = stateToMane(gameState.currentPlayer)
+      pl ! SelectGoodToTrade
+      goto(TraderProcess) using DoOnce(pl)
+    } else {
+      //TODO: empty the trading house if needed
+      endRole
+    }
   }
 
   startWith(RoleProcess, DoOnce(playerOneMane))
 
   when(RoleProcess){
     case Event(Prospector, DoOnce(playerMane)) => {
-      //sender wants to be prospector
-      //simple enough to deal with here
-      if (sender == playerMane) {
-        giveRolePickerCard(Prospector)
+      if (sender == playerMane && gameState.canGetRole(Prospector)) {
+        gameState.givePickerRole(Prospector)
         gameState.rolePicker.doubloons += 1
         stay using DoOnce(getNextRolePicker)
-      } else {
-        println("call ignored")
-        stay
-      }
+      } else stay
     }
 
     case Event(Craftsman, p @ DoOnce(playerMane)) => {
-      //sender wants to be craftsman
-      if (sender == playerMane) {
-        giveRolePickerCard(Craftsman)
+      if (sender == playerMane && gameState.canGetRole(Craftsman)) {
+        gameState.givePickerRole(Craftsman)
         gameState.craft
         sender ! SelectGoodToProduce
         goto(CraftsmanProcess) using p
       } else stay
     }
+
+    case Event(Settler, DoOnce(playerMane)) => {
+      if (sender == playerMane && gameState.canGetRole(Settler)) {
+        gameState.givePickerRole(Settler)
+
+        if (gameState.canAccomodatePlantation) {
+          if (gameState.canGetPlantationExtra)
+           stateToMane(gameState.currentPlayer) ! SelectPlantationExtra
+         else 
+           stateToMane(gameState.currentPlayer) ! SelectPlantation
+       
+          goto(SettlerProcess) using DoOnceEach(playerManeOrder)
+        } else secondSettler
+      } else stay
+    }
+
+    case Event(Trader, DoOnce(playerMane)) => {
+      if (sender == playerMane) {
+        gameState.givePickerRole(Trader)
+        if (gameState.canTradeAnyGood) {
+          playerMane ! SelectGoodToTrade
+          goto(TraderProcess) using DoOnceEach(playerManeOrder)
+        } else secondTrader
+      } else stay
+    }
+
+    /* More roles to implement
+
+    case Event(Builder, DoOnce(playerMane)) => {
+      if(sender == playerMane){
+        gameState.givePickerRole(Builder)
+
+      }
+    }
+
+    case Event(Mayor, DoOnce(playerMane)) => {
+      if(sender == playerMane) {
+        gameState.givePickerRole(Mayor)
+        //TODO
+      }
+    }
+
+    case Event(Captain, DoOnce(playerMane)) => {
+      if(sender == playerMane) {
+        gameState.givePickerRole(Captain)
+        //TODO
+      }
+    }*/
+
   }
+
+
+  when(TraderProcess){
+
+    case Event(NoneSelected, DoOnceEach(_)) => secondTrader
+
+    case Event(NoneSelected, DoOnce(playerMane)) => endRole
+
+    case Event(GoodSelected(good), DoOnceEach(playerManeList)) => {
+      if (sender == playerManeList.head && gameState.canTradeGood(good)) {
+        //TODO: convert the good to money
+        secondTrader
+      } else stay
+    }
+
+    case Event(GoodSelected(good), DoOnce(playerMane)) => {
+      if(sender == playerMane && gameState.canTradeGood(good)){
+        //TODO: convert the good to money
+        endRole
+      } else stay
+    }
+
+  }
+
+  when(SettlerProcess){
+    //TODO: add a flag to check if Hacidena effect has been taken into account
+    //to avoid concurrency problems
+    case Event(NoneSelected, DoOnceEach(_)) => secondSettler
+
+    case Event(NoneSelected, DoOnce(playerMane)) => endRole
+    
+    case Event(PlantationSelected(plant), DoOnceEach(playerManeList)) => {
+      if (sender == playerManeList.head && gameState.canGetPlantation(plant)) {
+        gameState.currentPlayer.island.plantations(plant) += 1
+        secondSettler
+      } else stay
+    }
+
+    case Event(PlantationSelected(plant), DoOnce(playerMane)) => {
+      if (sender == playerMane && gameState.canGetPlantation(plant)) {
+        gameState.currentPlayer.island.plantations(plant) += 1
+        endRole
+      } else stay
+    }
+
+    case Event(PlantationExtraSelected(plant), DoOnceEach(playerManeList)) => {
+      if (sender == playerManeList.head && gameState.canGetPlantation(plant)) {
+        gameState.currentPlayer.island.plantations(plant) += 1
+        if (gameState.canAccomodatePlantation){
+          sender ! SelectPlantation
+          stay using DoOnceEach(playerManeList)
+        } else secondSettler
+      } else stay
+    }
+
+    case Event(PlantationExtraSelected(plant), DoOnce(playerMane)) => {
+      if (sender == playerMane && gameState.canGetPlantation(plant)) {
+        gameState.currentPlayer.island.plantations(plant) += 1
+        if (gameState.canAccomodatePlantation) {
+          sender ! SelectPlantation
+          stay using DoOnce(playerMane)
+        } else endRole
+      } else stay
+    }
+
+  }
+
 
   when(CraftsmanProcess){
     case Event(GoodSelected(good), DoOnce(playerMane)) => {
       if (sender == playerMane) {
         if (gameState.canGetGood(good)) {
           gameState.currentPlayer.goods(good) += 1
-          goto(RoleProcess) using DoOnce(getNextRolePicker)
+          endRole
         } else stay
       } else stay
     }
 
     case Event(NoneSelected, DoOnce(playerMane)) => {
       if (sender == playerMane)
-        goto(RoleProcess) using DoOnce(getNextRolePicker)
+        endRole
       else stay
     }
   }
 
+
   whenUnhandled {
     case Event(GameStateQuery, d) => {
-      sender ! gameState.otherPlayer.doubloons
+      //upon request, send a copy of gameState over
+      //TOFIX: should only send the data over.
+      //Also, can query for: all game data, just player 1 data, just player 2 data
+      sender ! gameState
       stay
     }
     case Event(e, s) => 

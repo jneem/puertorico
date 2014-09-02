@@ -5,7 +5,7 @@ import akka.actor._
 //RoleManager and Player conversation
 
 case object ChooseRole 
-case class RoleChosen(role: Role)
+case class RoleChosen(role: Role) //made obsolete with RoleBoss: reply with Role directly
 
 //RoleManager and RoleActors conversation
 
@@ -18,7 +18,9 @@ case class GoodSelected(good: Good)
 
 //Settler and Player conversation
 case object SelectPlantation //allow empty
+case object SelectPlantationExtra
 case class PlantationSelected(plant: Plantation)
+case class PlantationExtraSelected(plant: Plantation)
 case object NoneSelected //common to many
 
 //Mayor and Player conversation

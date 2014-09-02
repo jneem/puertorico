@@ -62,11 +62,16 @@ class GameState {
   }
 
   //Role getting logic
+  def considerNextPlayer = {
+    val tmp = currentPlayer
+    currentPlayer = otherPlayer
+    otherPlayer = currentPlayer
+  }
   def canGetRole(role: Role): Boolean = rolesDoubloons(role) > -1
-  def getRole(role: Role) = {
-    val doubloonOnRole = rolesDoubloons(role)
-    rolesDoubloons(role) = -1
-    doubloonOnRole
+
+  def givePickerRole(role: Role){
+      rolePicker.doubloons += rolesDoubloons(role)
+      rolesDoubloons(role) = -1
   }
   def resetRoles = rolesDoubloons.keys foreach {
     role => rolesDoubloons(role) += 1
@@ -102,6 +107,12 @@ class GameState {
   }
 
   //Trader logic
+  
+  def canTradeAnyGood = {
+    val tradeAny = goodsAll map (good => canTradeGood(good))
+    tradeAny reduce (_ && _)
+  }
+
   def canTradeGood(good: Good): Boolean = 
     currentPlayer.goods(good) > 0 && !tradingHouse.isFull && 
    (!tradingHouse.contains(good) || currentPlayer.hasActiveBuilding(Office))
@@ -112,7 +123,11 @@ class GameState {
       currentPlayer.island.spaceRemaining > 0 &&
       (currentPlayer == rolePicker || currentPlayer.hasActiveBuilding(ConstructionHut))
 
-  def canGetPlantationExtra(plant: Plantation) = currentPlayer.island.spaceRemaining > 0 
+  def canGetPlantationExtra = 
+    currentPlayer.island.spaceRemaining > 0 && currentPlayer.hasActiveBuilding(Hacienda)
+
+  def canAccomodatePlantation = currentPlayer.island.spaceRemaining > 0
+
   def getRandomPlantation = {
     val int = Random.nextInt(5)
     int match {

@@ -1,10 +1,12 @@
 package puertorico
 import scala.collection.mutable.HashMap
 
-class IslandState {
+//changed to case class for easy copy
+case class IslandState(
+  val plantations: PlantationBundle = PlantationBundle.empty, 
+  val colonistsPlantation: PlantationBundle = PlantationBundle.empty) {
+
   val size: Int = 12
-  val plantations = PlantationBundle.empty
-  val colonistsPlantation = PlantationBundle.empty
 
   def spaceRemaining: Int = size - plantations.sum
   def colonistsMax = plantations.sum
@@ -22,6 +24,19 @@ class BuildingBundle[T <: Building] {
   def spaceUsed = (buildingMap.keys.toList map (_.size)).sum
   def colonistsUsed = buildingMap.values.sum
   def colonistsMax = (buildingMap.keys.toList map (_.colonistsMax)).sum
+
+  //hard copy
+  def copy = {
+    val newone = new BuildingBundle[T]
+    newone.buildingMap ++= buildingMap
+    newone
+  }
+
+  //copy values from other
+  def copyFrom(other: BuildingBundle[T]) = {
+    buildingMap.clear()
+    buildingMap ++= other.buildingMap
+  }
 }
 
 
@@ -32,6 +47,14 @@ class BuildingState {
   
   def spaceUsed = productionBuildings.spaceUsed + purpleBuildings.spaceUsed
   def spaceRemaining = size - spaceUsed
+
+  //hard copy
+  def copy = {
+    val newone = new BuildingState
+    newone.productionBuildings.copyFrom(productionBuildings)
+    newone.purpleBuildings.copyFrom(purpleBuildings)
+    newone
+  }
 
   /**
    * Tally active production by good type.
@@ -72,6 +95,18 @@ class PlayerState {
 
   def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax 
   def colonistsUsed = island.colonistsUsed + buildings.colonistsUsed
+
+  //Make hard copy
+  def copy = {
+    val newone = new PlayerState
+    newone.island = island.copy()
+    newone.buildings = buildings.copy
+    newone.goods = goods.copy()
+    newone.victoryPoints = victoryPoints
+    newone.doubloons = doubloons
+    newone.colonistsSpare = colonistsSpare
+    newone
+  }
 
   /**
    * Tally active production by good type.
