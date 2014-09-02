@@ -64,17 +64,19 @@ class SettlerMane(gameState: GameState) extends Actor {
   }
 }
 
-class PlayerMane(gameState: GameState) extends Actor {
+class PlayerMane extends Actor {
   def receive = LoggingReceive {
     case ChooseRole => {
       //trigger some role selection
-      val role = Prospector
-      sender ! RoleChosen(role)
+      println("I need to pick a role")
+      //val role = Prospector
+      //sender ! RoleChosen(role)
     }
     case SelectGoodToProduce => {
       //trigger some good selection
-      val good = Corn
-      sender ! GoodSelected(Corn)
+      println("I need to pick a good")
+      //val good = Corn
+      //sender ! GoodSelected(Corn)
     }
   }
 }
@@ -82,8 +84,8 @@ class PlayerMane(gameState: GameState) extends Actor {
 class RoleMane(gameState: GameState) extends Actor {
   val prospectorMane = context.actorOf(Props(new ProspectorMane(gameState)), name = "prospectorManager")
   val craftsmanMane = context.actorOf(Props(new CraftsmanMane(gameState)), name = "craftsmanManager")
-  val playerOneMane = context.actorOf(Props(new PlayerMane(gameState)), name = "playerOne")
-  val playerTwoMane = context.actorOf(Props(new PlayerMane(gameState)), name = "playerTwo")
+  val playerOneMane = context.actorOf(Props(new PlayerMane), name = "playerOne")
+  val playerTwoMane = context.actorOf(Props(new PlayerMane), name = "playerTwo")
 
   //map PlayerState and Roles to their managers
   val stateToMane = HashMap[PlayerState, ActorRef]((gameState.playerOne, playerOneMane), (gameState.playerTwo, playerTwoMane))

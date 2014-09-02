@@ -72,9 +72,11 @@ class GameState {
     role => rolesDoubloons(role) += 1
   }
   def nextPlayerPickRoles = {
-    val tmp = currentPlayer
-    currentPlayer = otherPlayer
-    otherPlayer = tmp
+    if (rolePicker == currentPlayer) {
+      val tmp = currentPlayer
+      currentPlayer = otherPlayer
+      otherPlayer = tmp
+    } 
     rolePicker = currentPlayer
     //start new round if needed
     val rolesRemain = rolesDoubloons.count(_._2 == -1)
