@@ -33,6 +33,10 @@ case class ColonistsRearranged(colonistsPlantation: PlantationBundle,
 //Trader and Player conversation
 case object SelectGoodToTrade
 
+//Builer and Player conversation
+case object SelectBuilding
+case class BuildingSelected(b: Building)
+
 //Captain and Player conversation
 case object SelectGoodToShip
 case class GoodAndShipSelected(good: Good, ship: Ship)

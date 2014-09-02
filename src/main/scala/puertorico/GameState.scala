@@ -33,8 +33,10 @@ class GameState {
   val plantationsMax = new PlantationBundle(5,24,24,24,24,24)
   val goodsRemain = new GoodBundle(7,7,7,7,7)
 
-  //List all goods
+  //List all goods and plantations
   val goodsAll = List[Good](Corn, Indigo, Sugar, Tobacco, Coffee)
+  val plantationsAll = List[Plantation](Quarry, CornPlantation, IndigoPlantation, 
+    SugarPlantation, TobaccoPlantation, CoffeePlantation)
 
   //List all buildings and buildings remaining
 
@@ -106,6 +108,12 @@ class GameState {
     }
   }
 
+  //Builder logic
+  def canAccomodateBuilding = currentPlayer.buildings.spaceRemaining > 0
+
+  def canBuild(b: Building) = 
+    currentPlayer.buildings.spaceRemaining >= b.size && !currentPlayer.hasBuilding(b) 
+
   //Trader logic
   
   def canTradeAnyGood = {
@@ -167,6 +175,19 @@ class GameState {
     val prodOk = prodB.reduce(_ && _) 
     val purpOk = purpB.reduce(_ && _)
     totalOk && prodOk && purpOk
+  }
+
+  def assignColonistsArrangement(player: PlayerState, colonistsPlantation: PlantationBundle, 
+                                  productionBuildings: List[(ProductionBuilding, Int)], 
+                                  purpleBuildings: List[(PurpleBuilding, Int)], 
+                                  colonistsSpare: Int) = {
+
+  plantationsAll foreach {
+      plant => player.island.colonistsPlantation(plant) = colonistsPlantation(plant)
+    }
+    player.buildings.productionBuildings.copyFromList(productionBuildings)
+    player.buildings.purpleBuildings.copyFromList(purpleBuildings)
+    player.colonistsSpare = colonistsSpare
   }
 
   //Captain logic

@@ -37,6 +37,11 @@ class BuildingBundle[T <: Building] {
     buildingMap.clear()
     buildingMap ++= other.buildingMap
   }
+
+  def copyFromList(other: List[(T, Int)]) = {
+    buildingMap.clear()
+    buildingMap ++= other
+  }
 }
 
 
@@ -80,6 +85,11 @@ class BuildingState {
     case (x: ProductionBuilding) => productionBuildings.buildingMap.contains(x)
     case (x: PurpleBuilding) => purpleBuildings.buildingMap.contains(x)
   }
+
+  def addBuilding(b: Building) = b match {
+    case (x: ProductionBuilding) => productionBuildings.buildingMap(x) += 1
+    case (x: PurpleBuilding) => purpleBuildings.buildingMap(x) += 1
+  }
     
 }
 
@@ -117,6 +127,8 @@ class PlayerState {
 
   def hasBuilding(b: Building): Boolean = buildings.hasBuilding(b)
   def hasActiveBuilding(b: Building): Boolean = buildings.hasActiveBuilding(b)
+
+  def addBuilding(b: Building) = buildings.addBuilding(b)
 
 }
 
