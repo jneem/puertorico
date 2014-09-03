@@ -106,6 +106,14 @@ package object puertorico {
     def description: String
   }
 
+  case object EmptyBuilding extends Building {
+    val cost = 0
+    val victoryPoints = 0
+    override val colonistsMax = 0
+    override val size = 0
+    val description = "Empty Building"
+  }
+
   trait ProductionBuilding extends Building {
     def colonistsMax: Int
     def good: Good

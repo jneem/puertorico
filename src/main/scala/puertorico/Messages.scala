@@ -20,7 +20,7 @@ case class GoodSelected(good: Good)
 case object SelectPlantation //allow empty
 case object SelectPlantationExtra
 case class PlantationSelected(plant: Plantation)
-case class PlantationExtraSelected(plant: Plantation)
+case object PlantationExtraAgreed
 case object NoneSelected //common to many
 
 //Mayor and Player conversation

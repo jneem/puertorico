@@ -6,11 +6,14 @@ import scala.collection.immutable.HashMap
 sealed trait State
 case object RoleProcess extends State
 case object CraftsmanProcess extends State
+case object SettlerProcessHacienda extends State
+case object SettlerProcessHospice extends State
 case object SettlerProcess extends State
 case object TraderProcess extends State
 case object MayorProcess extends State
 case object CaptainProcess extends State
 case object BuilderProcess extends State
+case object BuilderProcessUniversity extends State
 
 sealed trait Data
 case class DoOnce(playerMane: ActorRef) extends Data
@@ -39,7 +42,8 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
   val maneToState = HashMap[ActorRef, PlayerState]((playerOneMane, gameState.playerOne), (playerTwoMane, gameState.playerTwo))
 
 
-  def playerManeOrder = List(stateToMane(gameState.currentPlayer), stateToMane(gameState.otherPlayer))
+  //Tan ordering on the players with rolePicker at head
+  def playerManeOrder = gameState.orderPlayers map (stateToMane(_))
 
   def getNextRolePicker = {
     gameState.nextPlayerPickRoles
@@ -49,49 +53,85 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
   }
 
   def endRole = goto(RoleProcess) using DoOnce(getNextRolePicker)
-  
-  //determines the message to send to the second player in Settler phase
-  def secondSettler = {
-    gameState.considerNextPlayer
-    if (gameState.canAccomodatePlantation) {
-      val pl = stateToMane(gameState.currentPlayer)
-      if (gameState.canGetPlantationExtra) 
-        pl ! SelectPlantationExtra
-      else
-        pl ! SelectPlantation
-      goto(SettlerProcess) using DoOnce(pl)
-    } else {
-      //TODO: regenerate the plantation tiles
-      endRole
+ 
+  //send state to SettlerProcessHacienda if possible
+  def handleHacienda(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole 
+    else {
+      val playerState = maneToState(pls.head)
+      if (gameState.canAccomodatePlantation(playerState) && 
+        playerState.canGetPlantationExtra) {
+        pls.head ! SelectPlantationExtra
+        goto(SettlerProcessHacienda) using DoOnceEach(pls)
+      } else handleNoHacienda(pls.tail)
     }
   }
 
-  def secondTrader = {
-    gameState.considerNextPlayer
-    if (gameState.canTradeAnyGood) {
-      val pl = stateToMane(gameState.currentPlayer)
-      pl ! SelectGoodToTrade
-      goto(TraderProcess) using DoOnce(pl)
-    } else {
-      //TODO: empty the trading house if needed
-      endRole
+  //send state to SettlerProcess if possible
+  def handleNoHacienda(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole
+    else {
+      val playerState = maneToState(pls.head)
+      if (gameState.canAccomodatePlantation(playerState)) {
+        pls.head ! SelectPlantation
+        goto(SettlerProcess) using DoOnceEach(pls)
+      } else handleHacienda(pls.tail)
     }
   }
 
-  def secondBuilder = {
-    gameState.considerNextPlayer
-    if (gameState.canAccomodateBuilding) {
-      val pl = stateToMane(gameState.currentPlayer)
-      pl ! SelectBuilding
-      goto(BuilderProcess) using DoOnce(pl)
-    } else endRole
+  //send state to SettlerHospice if possible
+  def handleHospice(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole
+    else {
+      val playerState = maneToState(pls.head)
+      if (playerState.hasBuilding(Hospice)) {
+        pls.head ! SelectColonist
+        goto(SettlerProcessHospice) using DoOnceEach(pls)
+      } else handleHacienda(pls.tail)
+    }
+  }
+
+
+  //send state to TraderProcess if possible
+  def handleTrader(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole
+    else {
+      val playerState = maneToState(pls.head)
+      if (gameState.canTradeSomeGoods(playerState)){
+        pls.head ! SelectGoodToTrade
+        goto(TraderProcess) using DoOnceEach(pls)
+      } else handleTrader(pls.tail)
+    }
+  }
+
+  //send state to BuilderProcess if possible
+  def handleBuilder(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole
+    else {
+      val playerState = maneToState(pls.head)
+      if (playerState.canAccomodateBuilding) {
+        pls.head ! SelectBuilding
+        goto(BuilderProcess) using DoOnceEach(pls)
+      } else handleBuilder(pls.tail)
+    }
+  }
+
+  def handleBuilderUniversity(pls: List[ActorRef]): State = {
+    if (pls.isEmpty) endRole 
+    else {
+      val playerState = maneToState(pls.head)
+      if (playerState.hasActiveBuilding(University)) {
+        pls.head ! SelectColonist
+        goto(BuilderProcessUniversity) using DoOnceEach(pls)
+      } else handleBuilder(pls.tail)
+    }
   }
 
   startWith(RoleProcess, DoOnce(playerOneMane))
 
   when(RoleProcess){
     case Event(Prospector, DoOnce(playerMane)) => {
-      if (sender == playerMane && gameState.canGetRole(Prospector)) {
+      if (sender == playerMane && gameState.isRoleAvailable(Prospector)) {
         gameState.givePickerRole(Prospector)
         gameState.rolePicker.doubloons += 1
         stay using DoOnce(getNextRolePicker)
@@ -99,7 +139,7 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
     }
 
     case Event(Craftsman, p @ DoOnce(playerMane)) => {
-      if (sender == playerMane && gameState.canGetRole(Craftsman)) {
+      if (sender == playerMane && gameState.isRoleAvailable(Craftsman)) {
         gameState.givePickerRole(Craftsman)
         gameState.craft
         sender ! SelectGoodToProduce
@@ -108,27 +148,16 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
     }
 
     case Event(Settler, DoOnce(playerMane)) => {
-      if (sender == playerMane && gameState.canGetRole(Settler)) {
+      if (sender == playerMane && gameState.isRoleAvailable(Settler)) {
         gameState.givePickerRole(Settler)
-
-        if (gameState.canAccomodatePlantation) {
-          if (gameState.canGetPlantationExtra)
-           stateToMane(gameState.currentPlayer) ! SelectPlantationExtra
-         else 
-           stateToMane(gameState.currentPlayer) ! SelectPlantation
-       
-          goto(SettlerProcess) using DoOnceEach(playerManeOrder)
-        } else secondSettler
+        handleHacienda(playerManeOrder)
       } else stay
     }
 
     case Event(Trader, DoOnce(playerMane)) => {
       if (sender == playerMane) {
         gameState.givePickerRole(Trader)
-        if (gameState.canTradeAnyGood) {
-          playerMane ! SelectGoodToTrade
-          goto(TraderProcess) using DoOnceEach(playerManeOrder)
-        } else secondTrader
+        handleTrader(playerManeOrder)
       } else stay
     }
 
@@ -136,10 +165,7 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
     case Event(Builder, DoOnce(playerMane)) => {
       if (sender == playerMane){
         gameState.givePickerRole(Builder)
-        if(gameState.canAccomodateBuilding){
-          playerMane ! SelectBuilding
-          goto(BuilderProcess) using DoOnceEach(playerManeOrder)
-        } else secondBuilder
+        handleBuilder(playerManeOrder)
       } else stay
     }
 
@@ -147,8 +173,6 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
       if(sender.equals(playerMane)) {
         gameState.givePickerRole(Mayor)
         playerMane ! SelectColonist
-        playerOneMane ! RearrangeColonists
-        playerTwoMane ! RearrangeColonists
         goto(MayorProcess) using DoOnce(playerMane)
       } else stay
     }
@@ -167,13 +191,19 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
 
     case Event(NoneSelected, DoOnce(playerMane)) => {
       if (sender == playerMane){
+        gameState.maymay
+        playerOneMane ! RearrangeColonists
+        playerTwoMane ! RearrangeColonists
         stay using DoOnceUntilSuccess(Set(playerOneMane, playerTwoMane))
       } else stay
     }
 
     case Event(ColonistSelected, DoOnce(playerMane)) => {
       if (sender == playerMane) {
-        gameState.currentPlayer.colonistsSpare += 1
+        val pl = maneToState(playerMane)
+        pl.colonistsSpare += 1
+        playerOneMane ! RearrangeColonists
+        playerTwoMane ! RearrangeColonists
         stay using DoOnceUntilSuccess(Set(playerOneMane, playerTwoMane))
       } else stay
     }
@@ -182,7 +212,7 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
       if (pset.contains(sender)){
         val pl = maneToState(sender) 
         if (gameState.isValidColonistsArrangement(pl, colP, proB, purB, colS)) {
-          gameState.assignColonistsArrangement(pl, colP, proB, purB, colS)
+          pl.assignColonistsArrangement(colP, proB, purB, colS)
           val pset2 = pset - sender
           if (pset2.isEmpty) endRole else stay using DoOnceUntilSuccess(pset2)
         } else stay
@@ -192,106 +222,87 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
 
   when(BuilderProcess){
 
-    case Event(NoneSelected, DoOnceEach(_)) => secondBuilder
-    
-    case Event(NoneSelected, DoOnce(playerMane)) => endRole
-
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleBuilder(playerManeList.tail)
     case Event(BuildingSelected(building), DoOnceEach(playerManeList)) => {
-      if (sender == playerManeList.head && gameState.canBuild(building)) {
-        gameState.currentPlayer.addBuilding(building)
-        secondBuilder
+      val playerState = maneToState(playerManeList.head)
+      if (sender == playerManeList.head && gameState.canBuild(building, playerState)) {
+        gameState.giveBuilding(building, playerState)
+        handleBuilderUniversity(playerManeList)
       } else stay
     }
 
-    case Event(BuildingSelected(building), DoOnce(playerMane)) => {
-      if(sender == playerMane && gameState.canBuild(building)){
-        gameState.currentPlayer.addBuilding(building)
-        endRole
-      } else stay
-    }
+  }
 
+  when(BuilderProcessUniversity){
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleBuilder(playerManeList.tail)
+    case Event(ColonistSelected, DoOnceEach(playerManeList)) => {
+      val playerState = maneToState(playerManeList.head)
+      playerState.addColonistByUniversity
+      handleBuilder(playerManeList.tail)
+    }
   }
 
   when(TraderProcess){
 
-    case Event(NoneSelected, DoOnceEach(_)) => secondTrader
-
-    case Event(NoneSelected, DoOnce(playerMane)) => endRole
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleTrader(playerManeList.tail)
 
     case Event(GoodSelected(good), DoOnceEach(playerManeList)) => {
-      if (sender == playerManeList.head && gameState.canTradeGood(good)) {
+      val playerState = maneToState(playerManeList.head)
+      if (sender == playerManeList.head && gameState.canTradeGood(good, playerState)) {
         //TODO: convert the good to money
-        secondTrader
+        handleTrader(playerManeList.tail)
       } else stay
     }
+  }
 
-    case Event(GoodSelected(good), DoOnce(playerMane)) => {
-      if(sender == playerMane && gameState.canTradeGood(good)){
-        //TODO: convert the good to money
-        endRole
+  when(SettlerProcessHacienda){
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleNoHacienda(playerManeList.tail)
+
+    case Event(PlantationExtraAgreed, DoOnceEach(playerManeList)) => {
+      if (sender == playerManeList.head) {
+        val playerState = maneToState(playerManeList.head)
+        val plant = gameState.getRandomPlantation
+        playerState.addPlantation(plant)
+        handleNoHacienda(playerManeList)
       } else stay
     }
-
   }
 
   when(SettlerProcess){
-    //TODO: add a flag to check if Hacidena effect has been taken into account
-    //to avoid concurrency problems
-    case Event(NoneSelected, DoOnceEach(_)) => secondSettler
-
-    case Event(NoneSelected, DoOnce(playerMane)) => endRole
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleHacienda(playerManeList.tail)
     
     case Event(PlantationSelected(plant), DoOnceEach(playerManeList)) => {
-      if (sender == playerManeList.head && gameState.canGetPlantation(plant)) {
-        gameState.currentPlayer.island.plantations(plant) += 1
-        secondSettler
+      val playerState = maneToState(playerManeList.head)
+      if (sender == playerManeList.head && gameState.canGetPlantation(plant, playerState)) {
+        playerState.addPlantation(plant)
+        handleHospice(playerManeList)
       } else stay
     }
-
-    case Event(PlantationSelected(plant), DoOnce(playerMane)) => {
-      if (sender == playerMane && gameState.canGetPlantation(plant)) {
-        gameState.currentPlayer.island.plantations(plant) += 1
-        endRole
-      } else stay
-    }
-
-    case Event(PlantationExtraSelected(plant), DoOnceEach(playerManeList)) => {
-      if (sender == playerManeList.head && gameState.canGetPlantation(plant)) {
-        gameState.currentPlayer.island.plantations(plant) += 1
-        if (gameState.canAccomodatePlantation){
-          sender ! SelectPlantation
-          stay using DoOnceEach(playerManeList)
-        } else secondSettler
-      } else stay
-    }
-
-    case Event(PlantationExtraSelected(plant), DoOnce(playerMane)) => {
-      if (sender == playerMane && gameState.canGetPlantation(plant)) {
-        gameState.currentPlayer.island.plantations(plant) += 1
-        if (gameState.canAccomodatePlantation) {
-          sender ! SelectPlantation
-          stay using DoOnce(playerMane)
-        } else endRole
-      } else stay
-    }
-
   }
 
+  when(SettlerProcessHospice){
+    case Event(NoneSelected, DoOnceEach(playerManeList)) => handleHacienda(playerManeList.tail)
+
+    case Event(ColonistSelected, DoOnceEach(playerManeList)) => {
+      val playerState = maneToState(playerManeList.head)
+      playerState.addColonistByHospice
+      handleHacienda(playerManeList.tail)
+    }
+  }
 
   when(CraftsmanProcess){
     case Event(GoodSelected(good), DoOnce(playerMane)) => {
       if (sender == playerMane) {
-        if (gameState.canGetGood(good)) {
-          gameState.currentPlayer.goods(good) += 1
+        val pl = maneToState(playerMane)
+        if (gameState.canGetGood(good, pl)) {
+          gameState.giveGood(good, pl)
           endRole
         } else stay
       } else stay
     }
 
     case Event(NoneSelected, DoOnce(playerMane)) => {
-      if (sender == playerMane)
-        endRole
-      else stay
+      if (sender == playerMane) endRole else stay
     }
   }
 
@@ -310,6 +321,11 @@ class RoleBoss(playerOneMane: ActorRef, playerTwoMane: ActorRef) extends Actor w
   }
   initialize()
   
+  onTransition {
+    case RoleProcess -> SettlerProcessHacienda => {
+
+    }
+  }
 }
 
 

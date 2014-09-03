@@ -6,10 +6,11 @@ import scala.util.Random
 
 class GameState {
 
+  import GameState._
+
   val playerOne = new PlayerState
   val playerTwo = new PlayerState
-  var currentPlayer = playerOne
-  var otherPlayer = playerTwo
+  //will soon be obsolete, replaced by getPlayer
   var governor = playerOne
   var rolePicker = playerOne
 
@@ -33,10 +34,6 @@ class GameState {
   val plantationsMax = new PlantationBundle(5,24,24,24,24,24)
   val goodsRemain = new GoodBundle(7,7,7,7,7)
 
-  //List all goods and plantations
-  val goodsAll = List[Good](Corn, Indigo, Sugar, Tobacco, Coffee)
-  val plantationsAll = List[Plantation](Quarry, CornPlantation, IndigoPlantation, 
-    SugarPlantation, TobaccoPlantation, CoffeePlantation)
 
   //List all buildings and buildings remaining
 
@@ -64,89 +61,87 @@ class GameState {
   }
 
   //Role getting logic
-  def considerNextPlayer = {
-    val tmp = currentPlayer
-    currentPlayer = otherPlayer
-    otherPlayer = currentPlayer
+
+  def orderPlayers: List[PlayerState] = {
+    if (rolePicker == playerOne) List(playerOne, playerTwo) else List(playerTwo, playerOne)
   }
-  def canGetRole(role: Role): Boolean = rolesDoubloons(role) > -1
+  
+  def isRoleAvailable(role: Role): Boolean = rolesDoubloons(role) > -1
 
   def givePickerRole(role: Role){
       rolePicker.doubloons += rolesDoubloons(role)
       rolesDoubloons(role) = -1
   }
-  def resetRoles = rolesDoubloons.keys foreach {
-    role => rolesDoubloons(role) += 1
+  def resetRoles = {
+    for (role <- rolesDoubloons.keys) rolesDoubloons(role) += 1 
+    //tell players to reset temporary parameters
+    
   }
+  
   def nextPlayerPickRoles = {
-    if (rolePicker == currentPlayer) {
-      val tmp = currentPlayer
-      currentPlayer = otherPlayer
-      otherPlayer = tmp
-    } 
-    rolePicker = currentPlayer
+    rolePicker = orderPlayers(1)
     //start new round if needed
     val rolesRemain = rolesDoubloons.count(_._2 == -1)
     if (rolesRemain < 3){
       resetRoles
-      governor = currentPlayer
+      for(player <- orderPlayers) player.resetTemporaryParam
+      governor = rolePicker
     }
   }
 
   //Craftsman logic
-  def canGetGood(good: Good): Boolean = 
+  def canGetGood(good: Good, currentPlayer: PlayerState): Boolean = 
     currentPlayer.productionBundle(good) > 0 && goodsRemain(good) > 0
   
-  def craft = goodsAll foreach {
-    good => { 
-      val p1produce = currentPlayer.productionBundle(good) min goodsRemain(good)
-      currentPlayer.goods(good) += p1produce
-      goodsRemain(good) -= p1produce
-      val p2produce = otherPlayer.productionBundle(good) min goodsRemain(good)
-      otherPlayer.goods(good) += p2produce
-      goodsRemain(good) -= p2produce
-    }
+  def craft = for { good <- goodsAll ; player <- orderPlayers} {
+    val produce = player.productionBundle(good) min goodsRemain(good)
+    goodsRemain(good) -= produce
+  }
+
+  def giveGood(good: Good, pl: PlayerState) = {
+    pl.goods(good) += 1
+    goodsRemain(good) -= 1
   }
 
   //Builder logic
-  def canAccomodateBuilding = currentPlayer.buildings.spaceRemaining > 0
+  
+  def canBuild(b: Building, pl: PlayerState) = pl.buildings.spaceRemaining >= b.size && 
+    !pl.hasBuilding(b) && pl.doubloons >= b.cost && buildingsRemaining(b) > 0
 
-  def canBuild(b: Building) = 
-    currentPlayer.buildings.spaceRemaining >= b.size && !currentPlayer.hasBuilding(b) 
+  def giveBuilding(b: Building, pl: PlayerState) = {
+    pl.addBuilding(b)
+    pl.doubloons -= b.cost
+    buildingsRemaining(b) -= 1
+  }
 
   //Trader logic
-  
-  def canTradeAnyGood = {
-    val tradeAny = goodsAll map (good => canTradeGood(good))
+  def canTradeSomeGoods(currentPlayer: PlayerState) = {
+    val tradeAny = goodsAll map (good => canTradeGood(good, currentPlayer))
     tradeAny reduce (_ && _)
   }
 
-  def canTradeGood(good: Good): Boolean = 
+  def canTradeGood(good: Good, currentPlayer: PlayerState): Boolean = 
     currentPlayer.goods(good) > 0 && !tradingHouse.isFull && 
    (!tradingHouse.contains(good) || currentPlayer.hasActiveBuilding(Office))
   
   //Settler logic
-  def canGetPlantation(plant: Plantation): Boolean = 
+  def canGetPlantation(plant: Plantation, playerState: PlayerState): Boolean = 
     plantationsVisible(plant) > 0 &&
-      currentPlayer.island.spaceRemaining > 0 &&
-      (currentPlayer == rolePicker || currentPlayer.hasActiveBuilding(ConstructionHut))
+      playerState.island.spaceRemaining > 0 &&
+      (playerState == rolePicker || playerState.hasActiveBuilding(ConstructionHut))
 
-  def canGetPlantationExtra = 
-    currentPlayer.island.spaceRemaining > 0 && currentPlayer.hasActiveBuilding(Hacienda)
-
-  def canAccomodatePlantation = currentPlayer.island.spaceRemaining > 0
+  def canAccomodatePlantation(playerState: PlayerState) = playerState.island.spaceRemaining > 0
 
   def getRandomPlantation = {
     val int = Random.nextInt(5)
     int match {
-      case 0 => Corn
-      case 1 => Indigo
-      case 2 => Sugar
-      case 3 => Tobacco
-      case 4 => Coffee
+      case 0 => CornPlantation
+      case 1 => IndigoPlantation
+      case 2 => SugarPlantation
+      case 3 => TobaccoPlantation
+      case 4 => CoffeePlantation
     }
   }
-  //TODO: handle the case of hospice 
 
   //Mayor logic
   def colonistsPerPlayer: (Int, Int) = {
@@ -155,6 +150,15 @@ class GameState {
     (firstPlayerGet, secondPlayerGet)
   }
 
+  def maymay = {
+    val cpl = colonistsPerPlayer
+    val playerOrder = orderPlayers
+    playerOrder(0).colonistsSpare += cpl._1
+    playerOrder(1).colonistsSpare += cpl._2
+  }
+
+  //since this is done by the server, better to leave in gameState
+  //although, this can be done in PlayerState
   def isValidColonistsArrangement(player: PlayerState, colonistsPlantation: PlantationBundle, 
                                   productionBuildings: List[(ProductionBuilding, Int)], 
                                   purpleBuildings: List[(PurpleBuilding, Int)], 
@@ -177,21 +181,8 @@ class GameState {
     totalOk && prodOk && purpOk
   }
 
-  def assignColonistsArrangement(player: PlayerState, colonistsPlantation: PlantationBundle, 
-                                  productionBuildings: List[(ProductionBuilding, Int)], 
-                                  purpleBuildings: List[(PurpleBuilding, Int)], 
-                                  colonistsSpare: Int) = {
-
-  plantationsAll foreach {
-      plant => player.island.colonistsPlantation(plant) = colonistsPlantation(plant)
-    }
-    player.buildings.productionBuildings.copyFromList(productionBuildings)
-    player.buildings.purpleBuildings.copyFromList(purpleBuildings)
-    player.colonistsSpare = colonistsSpare
-  }
-
   //Captain logic
-  def canShipGoods(good: Good, ship: Ship): Boolean = {
+  def canShipGoods(good: Good, ship: Ship, currentPlayer: PlayerState): Boolean = {
     currentPlayer.goods(good) > 0 && ship.maxLoadable(good) > 0 
     //TODO: need to check that no other ships has this good
   }
@@ -218,11 +209,15 @@ class GameState {
     goodCountOk && spaceOk
   }
 
-  
+
 }
 
 object GameState {
   
+  //List all goods and plantations
+  val goodsAll = List[Good](Corn, Indigo, Sugar, Tobacco, Coffee)
+  val plantationsAll = List[Plantation](Quarry, CornPlantation, IndigoPlantation, 
+    SugarPlantation, TobaccoPlantation, CoffeePlantation)
 
 }
 

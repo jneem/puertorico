@@ -1,5 +1,6 @@
 package puertorico
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.MutableList
 
 //changed to case class for easy copy
 case class IslandState(
@@ -87,6 +88,11 @@ class BuildingState {
   }
 
   def addBuilding(b: Building) = b match {
+    case (x: ProductionBuilding) => productionBuildings.buildingMap += x -> 0
+    case (x: PurpleBuilding) => purpleBuildings.buildingMap += x -> 0
+  }
+
+  def addColonistOnBuilding(b: Building) = b match {
     case (x: ProductionBuilding) => productionBuildings.buildingMap(x) += 1
     case (x: PurpleBuilding) => purpleBuildings.buildingMap(x) += 1
   }
@@ -105,6 +111,10 @@ class PlayerState {
 
   def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax 
   def colonistsUsed = island.colonistsUsed + buildings.colonistsUsed
+
+  //for information transfer and dealing with things like Hospice
+  var recentlyAddedBuilding: Building = EmptyBuilding
+  val recentlyAddedPlantations = MutableList.empty[Plantation]
 
   //Make hard copy
   def copy = {
@@ -128,7 +138,48 @@ class PlayerState {
   def hasBuilding(b: Building): Boolean = buildings.hasBuilding(b)
   def hasActiveBuilding(b: Building): Boolean = buildings.hasActiveBuilding(b)
 
-  def addBuilding(b: Building) = buildings.addBuilding(b)
+  def addBuilding(b: Building) = {
+    buildings.addBuilding(b)
+    recentlyAddedBuilding = b
+  }
 
+  def addPlantation(pl: Plantation) = {
+    island.plantations(pl) += 1
+    pl +=: recentlyAddedPlantations
+  }
+
+  def addColonistByHospice = {
+    val pl = recentlyAddedPlantations.head
+    island.colonistsPlantation(pl) += 1
+    //TODO: need to keep track of recent colonist changes as well?
+  }
+
+  def addColonistByUniversity = {
+    buildings.addColonistOnBuilding(recentlyAddedBuilding)
+  }
+
+  def canAccomodateBuilding = buildings.spaceRemaining > 0
+
+  def canGetPlantationExtra = island.spaceRemaining > 0 && hasActiveBuilding(Hacienda)
+
+  //clear temporary parameters at the beginning of a new round
+  //can also consider clearing these at the end of the Builder and Settler roles
+  def resetTemporaryParam = {
+    recentlyAddedBuilding = EmptyBuilding
+    recentlyAddedPlantations.clear()
+  }
+
+  def assignColonistsArrangement(cp: PlantationBundle, 
+                                  proB: List[(ProductionBuilding, Int)], 
+                                  purB: List[(PurpleBuilding, Int)], 
+                                  cs: Int) = {
+
+  GameState.plantationsAll foreach {
+      plant => island.colonistsPlantation(plant) = cp(plant)
+    }
+    buildings.productionBuildings.copyFromList(proB)
+    buildings.purpleBuildings.copyFromList(purB)
+    colonistsSpare = cs
+  }
 }
 
