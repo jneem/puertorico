@@ -49,7 +49,7 @@ class GameState {
     (SmallIndigo, 2), (SmallSugar, 2), (SmallMarket, 1), (Hacienda, 1), (ConstructionHut, 1), (SmallWarehouse, 1),
     (BigIndigo, 2), (BigSugar, 2), (BigMarket, 1), (BigWarehouse, 1), (Hospice, 1), (Office, 1),
     (BigCoffee, 2), (BigTobacco, 2), (Factory, 1), (University, 1), (Wharf, 1), (Harbor, 1), 
-    (TownHall, 1), (Residence, 1), (Fortress, 1), (GuildHall, 1), (CustomHouse, 1) )
+    (TownHall, 1), (Residence, 1), (Fortress, 1), (GuildHall, 1), (CustomsHouse, 1) )
 
   val buildingsRemaining = new HashMap[Building, Int]
   buildingsRemaining ++= buildingsAll
