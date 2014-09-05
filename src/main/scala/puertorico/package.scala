@@ -161,12 +161,6 @@ package object puertorico {
     val description = "Gives 0/1/2/3/5 extra doubloons for different good production"
   }
 
-  //TODO: more building cards
-  class UnfinishedBuilding extends Building { 
-    val cost = 1
-    val victoryPoints = 1
-    val description = "Unfinished Poohead"
-  }
   case object BigIndigo extends ProductionBuilding {
     val cost = 3
     val victoryPoints = 2
@@ -279,6 +273,7 @@ package object puertorico {
 
     def spaceRemaining: Int = size - spaceUsed
 
+    def canLoad(loadGood: Good) = good.isEmpty || good == loadGood
     /**
      * The maximum amount of the given good that can be loaded.
      */

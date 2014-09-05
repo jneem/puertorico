@@ -12,16 +12,16 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
   def this() = this(ActorSystem("SimplePuertoRico"))
 
-  val playerOneMane = system.actorOf(Props(new PlayerMane), name = "playerOne")
-  val playerTwoMane = system.actorOf(Props(new PlayerMane), name = "playerTwo")
-  val roleBoss = system.actorOf(Props(new RoleBoss(playerOneMane, playerTwoMane)), name = "roleBoss")
+  val playerOne = system.actorOf(Props(new Player), name = "playerOne")
+  val playerTwoMane = system.actorOf(Props(new Player), name = "playerTwo")
+  val roleBoss = system.actorOf(Props(new RoleBoss(playerOne, playerTwoMane)), name = "roleBoss")
 
   "role boss" must {
 
     "respond correctly" in {
       val probe = TestProbe()
-      playerOneMane.tell(ChooseRole, roleBoss)
-      roleBoss.tell(Prospector, playerOneMane)
+      playerOne.tell(ChooseRole, roleBoss)
+      roleBoss.tell(Prospector, playerOne)
       roleBoss.tell(GameStateQuery, probe.ref)
       //probe.expectMsg(1)
       //assert(gameState.rolesDoubloons(Prospector) == -1)

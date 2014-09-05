@@ -78,8 +78,8 @@ class BuildingState {
   def colonistsNeeded = 0 max (colonistsMax - colonistsUsed)
 
   def hasActiveBuilding(b: Building): Boolean = b match {
-    case (x: ProductionBuilding) => productionBuildings.buildingMap(x) > 0
-    case (x: PurpleBuilding) => purpleBuildings.buildingMap(x) > 0
+    case (x: ProductionBuilding) => productionBuildings.buildingMap.contains(x) && productionBuildings.buildingMap(x) > 0
+    case (x: PurpleBuilding) => purpleBuildings.buildingMap.contains(x) && purpleBuildings.buildingMap(x) > 0
   }
 
   def hasBuilding(b: Building): Boolean = b match {
@@ -157,6 +157,8 @@ class PlayerState {
   def addColonistByUniversity = {
     buildings.addColonistOnBuilding(recentlyAddedBuilding)
   }
+
+  def addColonistOnBuilding(b: Building) = buildings.addColonistOnBuilding(b)
 
   def canAccomodateBuilding = buildings.spaceRemaining > 0
 

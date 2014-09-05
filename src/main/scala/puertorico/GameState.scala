@@ -25,8 +25,9 @@ class GameState {
     playerOneState.buildings.colonistsNeeded + playerTwoState.buildings.colonistsNeeded
   }
 
-  val ships = List(new Ship(4), new Ship(6))
+  val ships = List[Ship](new Ship(4), new Ship(6))
   val wharf = new Ship(100)
+  def otherShip(ship: Ship) = ships.filter(_ != ship).head
 
   val tradingHouse = new TradingHouse
   val plantationsVisible = new PlantationBundle(1,1,1,1,1,1)
@@ -34,6 +35,13 @@ class GameState {
   val plantationsMax = new PlantationBundle(5,24,24,24,24,24)
   val goodsRemain = new GoodBundle(7,7,7,7,7)
 
+  //List goods price
+  val goodsPrice: Map[Good, Int] = Map(
+    Corn -> 0,
+    Indigo -> 1,
+    Sugar -> 2,
+    Tobacco -> 3,
+    Coffee -> 4 )
 
   //List all buildings and buildings remaining
 
@@ -44,6 +52,7 @@ class GameState {
     (TownHall, 1), (Residence, 1), (Fortress, 1), (GuildHall, 1), (CustomHouse, 1) )
 
   val buildingsRemaining = new HashMap[Building, Int]
+  buildingsRemaining ++= buildingsAll
 
   //List all roles and $ on role
 
@@ -75,7 +84,7 @@ class GameState {
   def resetRoles = {
     for (role <- rolesDoubloons.keys) rolesDoubloons(role) += 1 
     //tell players to reset temporary parameters
-    
+    for(playerState <- orderPlayers) playerState.resetTemporaryParam
   }
   
   def nextPlayerPickRoles = {
@@ -84,17 +93,17 @@ class GameState {
     val rolesRemain = rolesDoubloons.count(_._2 == -1)
     if (rolesRemain < 3){
       resetRoles
-      for(player <- orderPlayers) player.resetTemporaryParam
       governor = rolePicker
     }
   }
 
   //Craftsman logic
-  def canGetGood(good: Good, currentPlayer: PlayerState): Boolean = 
-    currentPlayer.productionBundle(good) > 0 && goodsRemain(good) > 0
+  def canGetGood(good: Good, currentPlayerState: PlayerState): Boolean = 
+    currentPlayerState.productionBundle(good) > 0 && goodsRemain(good) > 0
   
   def craft = for { good <- goodsAll ; player <- orderPlayers} {
     val produce = player.productionBundle(good) min goodsRemain(good)
+    player.goods(good) += produce
     goodsRemain(good) -= produce
   }
 
@@ -115,14 +124,21 @@ class GameState {
   }
 
   //Trader logic
-  def canTradeSomeGoods(currentPlayer: PlayerState) = {
-    val tradeAny = goodsAll map (good => canTradeGood(good, currentPlayer))
-    tradeAny reduce (_ && _)
+  def canTradeSomeGoods(currentPlayerState: PlayerState) = {
+    val tradeAny = goodsAll map (good => canTradeGood(good, currentPlayerState))
+    tradeAny reduce (_ || _)
   }
 
-  def canTradeGood(good: Good, currentPlayer: PlayerState): Boolean = 
-    currentPlayer.goods(good) > 0 && !tradingHouse.isFull && 
-   (!tradingHouse.contains(good) || currentPlayer.hasActiveBuilding(Office))
+  def canTradeGood(good: Good, currentPlayerState: PlayerState): Boolean = 
+    currentPlayerState.goods(good) > 0 && !tradingHouse.isFull && 
+   (!tradingHouse.contains(good) || currentPlayerState.hasActiveBuilding(Office))
+
+  def doTrade(good: Good, pl: PlayerState) = {
+    pl.goods(good) -= 1
+    tradingHouse.goods(good) += 1
+    pl.doubloons += goodsPrice(good)
+    if (rolePicker == pl) pl.doubloons += 1
+  }
   
   //Settler logic
   def canGetPlantation(plant: Plantation, playerState: PlayerState): Boolean = 
@@ -182,13 +198,14 @@ class GameState {
   }
 
   //Captain logic
-  def canShipGoods(good: Good, ship: Ship, currentPlayer: PlayerState): Boolean = {
-    currentPlayer.goods(good) > 0 && ship.maxLoadable(good) > 0 
-    //TODO: need to check that no other ships has this good
+  def canShipGoods(good: Good, ship: Ship, currentPlayerState: PlayerState): Boolean = {
+    val theOtherShip = otherShip(ship)
+    val isBestBoat = !ship.good.isEmpty || !theOtherShip.good.isEmpty || theOtherShip.maxLoadable(good) < ship.maxLoadable(good)
+    currentPlayerState.goods(good) > 0 && ship.maxLoadable(good) > 0 && isBestBoat
   }
 
   def canKeepGoods(player: PlayerState, goodList: List[(Good, Int)]): Boolean = {
-    //has the right number of goods
+    //has the right number of good
     val goodCount = goodList map {
       case (good, count) => player.goods(good) >= count
     }
