@@ -4,6 +4,7 @@ import akka.actor.{Actor, ActorRef, FSM}
 import scala.collection.immutable.HashMap
 
 sealed trait State
+case object WaitForStart extends State
 case object RoleProcess extends State
 case object CraftsmanProcess extends State
 case object SettlerProcessHacienda extends State
@@ -22,6 +23,7 @@ case class DoOnceUntilSuccess(playerSet: Set[ActorRef]) extends Data
 case class DoUntilSuccess(playerList: List[ActorRef]) extends Data
 
 case object GameStateQuery
+case object StartGame
 
 
 /**
@@ -127,7 +129,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     }
   }
 
-  startWith(RoleProcess, DoOnce(playerOne))
+  startWith(WaitForStart, DoOnce(playerOne))
+
+  when(WaitForStart) {
+    case Event(StartGame, d @ DoOnce(p)) => {
+      p ! ChooseRole
+      goto(RoleProcess) using d
+    }
+  }
 
   when(RoleProcess){
     case Event(Prospector, DoOnce(player)) => {

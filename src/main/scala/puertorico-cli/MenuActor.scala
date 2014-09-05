@@ -1,6 +1,6 @@
 package puertorico_cli
 
-import akka.actor.{Actor, ActorSystem}
+import akka.actor.{Actor, ActorSystem, Props, ActorRef}
 import java.io.PrintStream
 import puertorico._
 
@@ -14,6 +14,16 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
 
   var p1Name: String = ""
   var p2Name: String = ""
+  var p1Proxy: ActorRef = null
+  var p2Proxy: ActorRef = null
+  val gameState = new GameState
+
+  private def nameAndState(player: ActorRef) = {
+    if (player == p1Proxy)
+      (p1Name, gameState.playerOneState)
+    else
+      (p2Name, gameState.playerTwoState)
+  }
 
   def showPrompt() = print("> ")
 
@@ -47,8 +57,18 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
       out.println("For help, press ? at any time.")
       showPrompt()
 
-      val gs = new GameState
-      val menu = PuertoRicoCLIUtils.defaultMenu(gs, gs.playerOne, gs.playerTwo)
+      // Start the game!
+      val menu = PuertoRicoCLIUtils.defaultMenu(gameState, gameState.playerOneState, gameState.playerTwoState)
+      p1Proxy = context.actorOf(Props[PassthroughActor])
+      p2Proxy = context.actorOf(Props[PassthroughActor])
+      val boss = context.actorOf(Props(new RoleBoss(p1Proxy, p2Proxy)))
+      p1Proxy ! PassthroughActor.SetAlice(self)
+      p2Proxy ! PassthroughActor.SetAlice(self)
+      p1Proxy ! PassthroughActor.SetBob(boss)
+      p2Proxy ! PassthroughActor.SetBob(boss)
+
+      boss ! StartGame
+
       context.become(runGame(menu))
     }
 
@@ -78,6 +98,18 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     }
 
     case StdinMonitor.EOF => onEOF()
+
+    // TODO: instead of handling messages from the game
+    // as the come, we need some mechanism for queueing them
+    // up and dealing with them one at a time. For example,
+    // the game will send two messages at the same time, asking
+    // people to move their colonists. We need to deal with one first,
+    // then the other one.
+    case ChooseRole => {
+      val (name, state) = nameAndState(sender)
+      out.println(s"$name, please choose a role.")
+      // TODO: finish this...
+    }
   }
 }
 
