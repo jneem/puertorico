@@ -133,7 +133,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(Prospector, DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Prospector)) {
         gameState.givePickerRole(Prospector)
-        gameState.rolePicker.doubloons += 1
+        gameState.doProspect
         stay using DoOnce(getNextRolePicker)
       } else stay
     }
@@ -191,7 +191,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
 
     case Event(NoneSelected, DoOnce(player)) => {
       if (sender == player){
-        gameState.maymay
+        gameState.doMayor
         playerOne ! RearrangeColonists
         playerTwo ! RearrangeColonists
         stay using DoOnceUntilSuccess(Set(playerOne, playerTwo))
@@ -249,7 +249,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(GoodSelected(good), DoOnceEach(playerList)) => {
       val playerState = playerToState(playerList.head)
       if (sender == playerList.head && gameState.canTradeGood(good, playerState)) {
-        //TODO: convert the good to money
+        gameState.doTrade(good, playerState)
         handleTrader(playerList.tail)
       } else stay
     }
@@ -321,11 +321,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   }
   initialize()
   
-  onTransition {
-    case RoleProcess -> SettlerProcessHacienda => {
-
-    }
-  }
+  //onTransition { }
 }
 
 

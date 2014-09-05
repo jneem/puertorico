@@ -70,5 +70,17 @@ class GameStateTest extends FlatSpec {
     assert(gameState.canGetPlantation(Quarry, p2) === true)
   }
 
+  it should "switch role pickers correctly" in {
+    //correct ordering
+    assert(gameState.rolePicker === p1)
+    gameState.nextPlayerPickRoles
+    assert(gameState.rolePicker === p2)
+    assert(gameState.orderPlayers.head === p2)
+    assert(gameState.orderPlayers.tail.head === p1)
+    //temporary buildings are cleared
+    assert(p1.recentlyAddedBuilding === EmptyBuilding)
+    assert(p1.recentlyAddedPlantations.isEmpty === true)
+  }
+
 
 }

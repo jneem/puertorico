@@ -97,6 +97,8 @@ class GameState {
     }
   }
 
+  def doProspect = rolePicker.doubloons += 1
+
   //Craftsman logic
   def canGetGood(good: Good, currentPlayerState: PlayerState): Boolean = 
     currentPlayerState.productionBundle(good) > 0 && goodsRemain(good) > 0
@@ -166,7 +168,7 @@ class GameState {
     (firstPlayerGet, secondPlayerGet)
   }
 
-  def maymay = {
+  def doMayor = {
     val cpl = colonistsPerPlayer
     val playerOrder = orderPlayers
     playerOrder(0).colonistsSpare += cpl._1
