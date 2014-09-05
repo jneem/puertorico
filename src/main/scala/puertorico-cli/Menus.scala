@@ -20,7 +20,8 @@ case class MenuChoice(val commandString: String,
                       val description: String,
                       val action: () => ActionResult)
 
-class MenuState(private val initChoices: List[MenuChoice]) {
+class MenuState(private val initChoices: List[MenuChoice],
+                val idle: Boolean = true) {
   private lazy val choices = initChoices :+ helpChoice
 
   // TODO: warn if initChoices contains a binding for '?',
@@ -52,7 +53,7 @@ class MenuState(private val initChoices: List[MenuChoice]) {
 
   def +(other: MenuState) = {
     // TODO: warn if a binding collides.
-    new MenuState(initChoices ++ other.initChoices)
+    new MenuState(initChoices ++ other.initChoices, idle && other.idle)
   }
 }
 
@@ -81,6 +82,16 @@ object PuertoRicoCLIUtils {
     Residence -> ("Residence", "r"),
     GuildHall -> ("Guild hall", "gh"),
     Fortress -> ("Fortress", "fo")
+  )
+
+  val roleNames = Map[Role, (String, String)](
+    Prospector -> ("Prospector", "p"),
+    Captain -> ("Captain", "c"),
+    Mayor -> ("Mayor", "m"),
+    Trader -> ("Trader", "t"),
+    Builder -> ("Builder", "b"),
+    Settler -> ("Settler", "s"),
+    Craftsman -> ("Craftsman", "c")
   )
 
 
@@ -131,6 +142,36 @@ object PuertoRicoCLIUtils {
     )
 
     new MenuState(choices)
+  }
+
+  def chooseRolesMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    def roleChoice(r: Role) = {
+      val (name, cmd) = roleNames(r)
+      val nextState = defaultMenu(gs, me, other)
+      MenuChoice(cmd,
+                 s"Choose the ${name} role.",
+                 () => ActionResult(s"You chose ${name}.",
+                                    Some(nextState),
+                                    Some(RoleChosen(r))))
+    }
+
+    val choices = List(
+      MenuChoice("li",
+                 "List the available roles.",
+                 () => ActionResult(showAvailableRoles(gs), None, None))
+    )
+    val roleChoices = gs.rolesDoubloons.keys.toList map roleChoice
+
+    new MenuState(choices ++ roleChoices, false) + defaultMenu(gs, me, other)
+  }
+
+  def showAvailableRoles(gs: GameState): String = {
+    val roles = gs.rolesDoubloons map { case (role, money) =>
+      val (name, cmd) = roleNames(role)
+      s"\t${cmd} (${money})\t${name}"
+    }
+
+    "Available roles:\n" + roles.mkString("\n")
   }
 }
 

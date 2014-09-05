@@ -18,6 +18,11 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   var p2Proxy: ActorRef = null
   val gameState = new GameState
 
+  // The game boss sends lots of messages that
+  // require responses. Here, we queue up the ones
+  // that we haven't responded to yet.
+  var requestQueue = List[Any]()
+
   private def nameAndState(player: ActorRef) = {
     if (player == p1Proxy)
       (p1Name, gameState.playerOneState)
@@ -25,7 +30,50 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
       (p2Name, gameState.playerTwoState)
   }
 
-  def showPrompt() = print("> ")
+  private def nameAndStates(player: ActorRef) = {
+    if (player == p1Proxy)
+      (p1Name, gameState.playerOneState, gameState.playerTwoState)
+    else
+      (p2Name, gameState.playerTwoState, gameState.playerOneState)
+  }
+
+  /**
+   * If there is a request in our queue, pop it
+   * and change state accordingly, asking the user for
+   * the relevant information.
+   */
+  def popRequest() = {
+    if (requestQueue.nonEmpty) {
+      val req = requestQueue.head
+      requestQueue = requestQueue.tail
+      handleRequest(req)
+    }
+  }
+
+  def showPrompt() = {
+    print("> ")
+  }
+
+  /**
+   * Every case in here should finish by calling
+   * context.become on a non-idle state.
+   */
+  def handleRequest(req: Any) = req match {
+    case ChooseRole => {
+      val (name, myState, otherState) = nameAndStates(sender)
+      val state = PuertoRicoCLIUtils.chooseRolesMenu(gameState, myState, otherState)
+
+      out.println(s"$name, please choose a role.")
+      context.become(runGame(state))
+    }
+
+    case _ => {
+      out.println(s"Sorry, I don't know how to handle $req yet...")
+      val (name, myState, otherState) = nameAndStates(sender)
+      val state = PuertoRicoCLIUtils.defaultMenu(gameState, myState, otherState)
+      context.become(runGame(state))
+    }
+  }
 
   def onEOF() {
       println(s"end of input, terminating...")
@@ -83,11 +131,23 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
           out.println(result.display)
         }
         if (result.message != None) {
-          out.println("sending message to game...")
-          // TODO
+          out.println(s"sending message ${result.message.get} to game...")
+
+          // TODO: should really send it through either p1Proxy or p2Proxy
+          p1Proxy ! result.message.get
         }
+        
         if (result.newState != None) {
-          context.become(runGame(result.newState.get))
+          val newState = result.newState.get
+
+          // If we're asked to switch to an idle state but there's
+          // work pending, figure out the next state according
+          // to the work to do instead.
+          if (newState.idle && requestQueue.nonEmpty) {
+            popRequest()
+          } else {
+            context.become(runGame(newState))
+          }
         }
       } else {
         out.println("I didn't understand that...")
@@ -99,16 +159,15 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
 
     case StdinMonitor.EOF => onEOF()
 
-    // TODO: instead of handling messages from the game
-    // as the come, we need some mechanism for queueing them
-    // up and dealing with them one at a time. For example,
-    // the game will send two messages at the same time, asking
-    // people to move their colonists. We need to deal with one first,
-    // then the other one.
-    case ChooseRole => {
-      val (name, state) = nameAndState(sender)
-      out.println(s"$name, please choose a role.")
-      // TODO: finish this...
+    case x => {
+      if (state.idle) {
+        out.println("")
+        handleRequest(x)
+        showPrompt()
+      } else {
+        out.println("Got a message, but I'm busy...")
+        requestQueue = requestQueue :+ x
+      }
     }
   }
 }

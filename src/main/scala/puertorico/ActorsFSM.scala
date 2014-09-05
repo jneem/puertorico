@@ -139,7 +139,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   }
 
   when(RoleProcess){
-    case Event(Prospector, DoOnce(player)) => {
+    case Event(RoleChosen(Prospector), DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Prospector)) {
         gameState.givePickerRole(Prospector)
         gameState.doProspect
@@ -147,7 +147,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       } else stay
     }
 
-    case Event(Craftsman, p @ DoOnce(player)) => {
+    case Event(RoleChosen(Craftsman), p @ DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Craftsman)) {
         gameState.givePickerRole(Craftsman)
         gameState.craft
@@ -156,14 +156,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       } else stay
     }
 
-    case Event(Settler, DoOnce(player)) => {
+    case Event(RoleChosen(Settler), DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Settler)) {
         gameState.givePickerRole(Settler)
         handleHacienda(playerOrder)
       } else stay
     }
 
-    case Event(Trader, DoOnce(player)) => {
+    case Event(RoleChosen(Trader), DoOnce(player)) => {
       if (sender == player) {
         gameState.givePickerRole(Trader)
         handleTrader(playerOrder)
@@ -171,14 +171,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     }
 
 
-    case Event(Builder, DoOnce(player)) => {
+    case Event(RoleChosen(Builder), DoOnce(player)) => {
       if (sender == player){
         gameState.givePickerRole(Builder)
         handleBuilder(playerOrder)
       } else stay
     }
 
-    case Event(Mayor, DoOnce(player)) => {
+    case Event(RoleChosen(Mayor), DoOnce(player)) => {
       if(sender.equals(player)) {
         gameState.givePickerRole(Mayor)
         player ! SelectColonist
@@ -324,9 +324,11 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       sender ! gameState
       stay
     }
+    /*
     case Event(e, s) => 
-      log.warning("received unhandled request ${e}, data ${s}")
+      log.warning(s"received unhandled request ${e}, data ${s}")
       stay
+      */
   }
   initialize()
   
