@@ -1,64 +1,74 @@
-package puertorico_cli
+//package puertorico_cli
 
 import java.io.{BufferedReader, PrintStream}
 import collection.mutable.HashMap
 import puertorico._
 
-// There are various things that could happen as the result of
-// an action:
-//  - some text could be displayed
-//  - we could enter a new MenuState
-//  - we could send a message to the PlayerActor.
-case class ActionResult(val display: String,
-                        val newState: Option[MenuState],
-                        val message: Option[Object])
+package object puertorico_cli {
+  // There are various things that could happen as the result of
+  // an action:
+  //  - some text could be displayed
+  //  - we could enter a new MenuState
+  //  - we could send a message to the PlayerActor.
+  case class ActionResult(val display: String,
+                          val newState: Option[MenuState],
+                          val message: Option[Object])
 
 
-// The result is Option[MenuState] because the special
-// value None means that the current state should be repeated.
-case class MenuChoice(val commandString: String,
-                      val description: String,
-                      val action: () => ActionResult)
+  // The result is Option[MenuState] because the special
+  // value None means that the current state should be repeated.
+  case class MenuChoice(val commandString: String,
+                        val description: String,
+                        val action: () => ActionResult)
 
-class MenuState(private val initChoices: List[MenuChoice],
-                val idle: Boolean = true) {
-  private lazy val choices = initChoices :+ helpChoice
+  /**
+   * A MenuState is a collection of all the currently valid choices.
+   *
+   * A MenuState is idle if it is not currently responding to a request
+   * from the game. For example, if the game asks a user to select a role
+   * then the interface should put itself into a non-idle state until it
+   * actually sends the chosen role back to the game.
+   *
+   * If the menu is in an idle state and it receives a request from the game,
+   * it should immediately present that request to the user; otherwise, it
+   * should queue the request.
+   */
+  class MenuState(private val initChoices: List[MenuChoice],
+                  val idle: Boolean = true) {
+    private lazy val choices = initChoices :+ helpChoice
 
-  // TODO: warn if initChoices contains a binding for '?',
-  // which should be reserved for the help action.
+    // TODO: warn if initChoices contains a binding for '?',
+    // which should be reserved for the help action.
 
-  private lazy val actionMap =
-    (choices map (x => x.commandString -> x)).toMap
+    private lazy val actionMap =
+      (choices map (x => x.commandString -> x)).toMap
 
-  // To generate the help text for a given state, we need to
-  // know all the other menu choices.
-  def helpChoice: MenuChoice = {
-    val cmd = "?"
-    val desc = "Show the currently available commands."
-    lazy val ret = MenuChoice(cmd, desc, helpAction)
+    // To generate the help text for a given state, we need to
+    // know all the other menu choices.
+    def helpChoice: MenuChoice = {
+      val cmd = "?"
+      val desc = "Show the currently available commands."
+      lazy val ret = MenuChoice(cmd, desc, helpAction)
 
-    def helpAction() = {
-      def oneHelpLine(mc: MenuChoice) = mc.commandString + "\t" + mc.description
+      def helpAction() = {
+        def oneHelpLine(mc: MenuChoice) = mc.commandString + "\t" + mc.description
 
-      val display = (choices map oneHelpLine).mkString("\n")
-      ActionResult(display, None, None)
+        val display = (choices map oneHelpLine).mkString("\n")
+        ActionResult(display, None, None)
+      }
+
+      ret
     }
 
-    ret
+    def hasAction(act: String) = actionMap contains act
+
+    def takeAction(act: String) = actionMap(act).action()
+
+    def +(other: MenuState) = {
+      // TODO: warn if a binding collides.
+      new MenuState(initChoices ++ other.initChoices, idle && other.idle)
+    }
   }
-
-  def hasAction(act: String) = actionMap contains act
-
-  def takeAction(act: String) = actionMap(act).action()
-
-  def +(other: MenuState) = {
-    // TODO: warn if a binding collides.
-    new MenuState(initChoices ++ other.initChoices, idle && other.idle)
-  }
-}
-
-object PuertoRicoCLIUtils {
-  case object Repeat
 
   val bldgNames = Map[Building, (String, String)](
     SmallIndigo -> ("Small indigo plant", "si"),
@@ -172,52 +182,6 @@ object PuertoRicoCLIUtils {
     }
 
     "Available roles:\n" + roles.mkString("\n")
-  }
-}
-
-class MenuIO(in: BufferedReader, out: PrintStream) {
-  val globalCommands = List(
-    )
-
-  // TODO: put this in a util file.
-  def safeStringToInt(str: String): Option[Int] = {
-    import scala.util.control.Exception._
-    catching(classOf[NumberFormatException]) opt str.toInt
-  }
-
-  /**
-   * Asks the user to choose from a list of alternatives.
-   *
-   * Blocks until the user reponds with a proper answer.
-   */
-  def chooseFromList[T](alternatives: List[T], toString: T => String): T = {
-    printNumberedList(alternatives map toString)
-    val max = alternatives.length + 1
-    
-    val validResponse = (s: String) => {
-      safeStringToInt(s) flatMap { i =>
-        if (1 <= i && i <= max) Some(i) else None
-      }
-    }
-
-    val responseIndex = expectResponse[Int](validResponse)
-    alternatives(responseIndex)
-  }
-
-  def expectResponse[T](pred: String => Option[T]): T = {
-    pred(in.readLine()) match {
-      case Some(x) => x
-      case None => {
-        println("I didn't understand that response.")
-        expectResponse(pred)
-      }
-    }
-  }
-
-  def printNumberedList(xs: List[String]) = {
-    xs.zipWithIndex foreach { case (s, i) =>
-      println(f"$i%3d. $s%s")
-    }
   }
 }
 

@@ -61,7 +61,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   def handleRequest(req: Any) = req match {
     case ChooseRole => {
       val (name, myState, otherState) = nameAndStates(sender)
-      val state = PuertoRicoCLIUtils.chooseRolesMenu(gameState, myState, otherState)
+      val state = chooseRolesMenu(gameState, myState, otherState)
 
       out.println(s"$name, please choose a role.")
       context.become(runGame(state))
@@ -70,7 +70,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     case _ => {
       out.println(s"Sorry, I don't know how to handle $req yet...")
       val (name, myState, otherState) = nameAndStates(sender)
-      val state = PuertoRicoCLIUtils.defaultMenu(gameState, myState, otherState)
+      val state = defaultMenu(gameState, myState, otherState)
       context.become(runGame(state))
     }
   }
@@ -106,7 +106,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
       showPrompt()
 
       // Start the game!
-      val menu = PuertoRicoCLIUtils.defaultMenu(gameState, gameState.playerOneState, gameState.playerTwoState)
+      val menu = defaultMenu(gameState, gameState.playerOneState, gameState.playerTwoState)
       p1Proxy = context.actorOf(Props[PassthroughActor])
       p2Proxy = context.actorOf(Props[PassthroughActor])
       val boss = context.actorOf(Props(new RoleBoss(p1Proxy, p2Proxy)))
