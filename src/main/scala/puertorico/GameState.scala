@@ -8,21 +8,21 @@ class GameState {
 
   import GameState._
 
-  val playerOne = new PlayerState
-  val playerTwo = new PlayerState
+  val playerOneState = new PlayerState
+  val playerTwoState = new PlayerState
   //will soon be obsolete, replaced by getPlayer
-  var governor = playerOne
-  var rolePicker = playerOne
+  var governor = playerOneState
+  var rolePicker = playerOneState
 
   val victoryPointsMax = 75
-  def victoryPointsUsed = playerOne.victoryPoints + playerTwo.victoryPoints
+  def victoryPointsUsed = playerOneState.victoryPoints + playerTwoState.victoryPoints
   def victoryPointsLeft = (victoryPointsMax - victoryPointsUsed) max 0
 
   val colonistsMax = 75
-  def colonistsUsed = playerOne.colonistsUsed + playerTwo.colonistsUsed
+  def colonistsUsed = playerOneState.colonistsUsed + playerTwoState.colonistsUsed
   def colonistsLeft = (colonistsMax - colonistsUsed) max 0 
   def colonistsOnBoat = 2 max {
-    playerOne.buildings.colonistsNeeded + playerTwo.buildings.colonistsNeeded
+    playerOneState.buildings.colonistsNeeded + playerTwoState.buildings.colonistsNeeded
   }
 
   val ships = List(new Ship(4), new Ship(6))
@@ -56,14 +56,14 @@ class GameState {
   def isEndGame: Boolean = {
     colonistsLeft == 0 ||
     victoryPointsLeft == 0 || 
-    playerOne.buildings.spaceRemaining == 0 ||
-    playerTwo.buildings.spaceRemaining == 0
+    playerOneState.buildings.spaceRemaining == 0 ||
+    playerTwoState.buildings.spaceRemaining == 0
   }
 
   //Role getting logic
 
   def orderPlayers: List[PlayerState] = {
-    if (rolePicker == playerOne) List(playerOne, playerTwo) else List(playerTwo, playerOne)
+    if (rolePicker == playerOneState) List(playerOneState, playerTwoState) else List(playerTwoState, playerOneState)
   }
   
   def isRoleAvailable(role: Role): Boolean = rolesDoubloons(role) > -1

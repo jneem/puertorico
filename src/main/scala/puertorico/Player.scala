@@ -4,7 +4,7 @@ import akka.event.LoggingReceive
 
 case object StartGame
 
-class PlayerMane extends Actor {
+class Player extends Actor {
   def receive = LoggingReceive {
     case ChooseRole => {
       //trigger some role selection
