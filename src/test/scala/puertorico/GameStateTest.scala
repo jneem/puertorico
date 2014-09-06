@@ -45,7 +45,8 @@ class GameStateTest extends FlatSpec {
 
     gameState.giveBuilding(Hacienda, p1)
     assert(p1.hasBuilding(Hacienda) === true)
-    assert(p1.doubloons === 0)
+    //got one for builder discount
+    assert(p1.doubloons === 1)
     assert(gameState.canBuild(Hacienda, p1) === false)
     assert(gameState.canBuild(Hacienda, p2) === false)
   }

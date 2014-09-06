@@ -273,7 +273,10 @@ package object puertorico {
 
     def spaceRemaining: Int = size - spaceUsed
 
-    def canLoad(loadGood: Good) = good.isEmpty || good == loadGood
+    def canLoad(loadGood: Good): Boolean = good match {
+      case Some(g) => g == loadGood
+      case None => true
+    }
     /**
      * The maximum amount of the given good that can be loaded.
      */
@@ -283,8 +286,8 @@ package object puertorico {
     }
 
     def clear: Unit = {
-      _good = None
-      _spaceUsed = 0
+        _good = None
+        _spaceUsed = 0
     }
 
     def load(loadGood: Good, quantity: Int): Unit = {
@@ -292,6 +295,7 @@ package object puertorico {
       _good = Some(loadGood)
       _spaceUsed += quantity
     }
+
   }
 
   trait Role

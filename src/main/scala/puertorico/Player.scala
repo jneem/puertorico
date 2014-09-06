@@ -8,13 +8,11 @@ class Player extends Actor {
   def receive = LoggingReceive {
     case ChooseRole => {
       //trigger some role selection
-      println("I need to pick a role")
-      //val role = Prospector
-      //sender ! RoleChosen(role)
+      val role = Prospector
+      sender ! role
     }
     case SelectGoodToProduce => {
       //trigger some good selection
-      println("I need to pick a good")
       //val good = Corn
       //sender ! GoodSelected(Corn)
     }

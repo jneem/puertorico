@@ -1,7 +1,7 @@
 package puertorico
 
 import akka.actor.{Actor, ActorRef, FSM}
-import scala.collection.immutable.HashMap
+import scala.collection.immutable.{HashMap => ImHashMap}
 
 sealed trait State
 case object RoleProcess extends State
@@ -29,7 +29,8 @@ case object GameStateQuery
   * Has the true copy of gameState
   * The players maintain their own version of gameState locally, which get synced with RoleBoss' by 
   * message passing.
-  * RoleBoss sends out gameState everytime it asks player to choose a role. 
+  * Each player has an integer. 
+  * RoleBoss sends messages of the form (number, message) 
   * TODO: may write a container version called gameData, to minimize amount of data passed around
   */
 
@@ -38,17 +39,32 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   val gameState = new GameState
 
   //map PlayerState to their actors, and vice versa
-  val stateToPlayer = HashMap[PlayerState, ActorRef]((gameState.playerOneState, playerOne), (gameState.playerTwoState, playerTwo))
-  val playerToState = HashMap[ActorRef, PlayerState]((playerOne, gameState.playerOneState), (playerTwo, gameState.playerTwoState))
+  val stateToPlayer = ImHashMap[PlayerState, ActorRef]((gameState.playerOneState, playerOne), (gameState.playerTwoState, playerTwo))
+  val playerToState = ImHashMap[ActorRef, PlayerState]((playerOne, gameState.playerOneState), (playerTwo, gameState.playerTwoState))
 
+  //list of all players
+  def allPlayers = playerToState.keys
+
+  //assign each player an integer
+  def playerNum: ImHashMap[ActorRef, Int] = gameState.playerNum map {
+    case (playerState, num) => (stateToPlayer(playerState), num)
+  }
 
   //order the players with rolePicker at head
-  def playerOrder = gameState.orderPlayers map (stateToPlayer(_))
+  def playersOrder = gameState.orderPlayers map (stateToPlayer(_))
+
+  def tellAll(player: ActorRef, message: Any) = {
+    for (pl <- allPlayers) pl ! (playerNum(player), message)
+  }
+
+  def tellEach(message: Any) = {
+    for (pl <- allPlayers) pl ! (playerNum(pl), message)
+  }
 
   def getNextRolePicker = {
     gameState.nextPlayerPickRoles
     val nextPlayer = stateToPlayer(gameState.rolePicker)
-    nextPlayer ! ChooseRole
+    tellAll(nextPlayer, ChooseRole)
     nextPlayer
   }
 
@@ -61,7 +77,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       val playerState = playerToState(pls.head)
       if (gameState.canAccomodatePlantation(playerState) && 
         playerState.canGetPlantationExtra) {
-        pls.head ! SelectPlantationExtra
+        tellAll(pls.head, SelectPlantationExtra)
         goto(SettlerProcessHacienda) using DoOnceEach(pls)
       } else handleNoHacienda(pls.tail)
     }
@@ -73,7 +89,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     else {
       val playerState = playerToState(pls.head)
       if (gameState.canAccomodatePlantation(playerState)) {
-        pls.head ! SelectPlantation
+        tellAll(pls.head, SelectPlantation)
         goto(SettlerProcess) using DoOnceEach(pls)
       } else handleHacienda(pls.tail)
     }
@@ -85,7 +101,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     else {
       val playerState = playerToState(pls.head)
       if (playerState.hasBuilding(Hospice)) {
-        pls.head ! SelectColonist
+        tellAll(pls.head, SelectColonist)
         goto(SettlerProcessHospice) using DoOnceEach(pls)
       } else handleHacienda(pls.tail)
     }
@@ -98,7 +114,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     else {
       val playerState = playerToState(pls.head)
       if (gameState.canTradeSomeGoods(playerState)){
-        pls.head ! SelectGoodToTrade
+        tellAll(pls.head, SelectGoodToTrade)
         goto(TraderProcess) using DoOnceEach(pls)
       } else handleTrader(pls.tail)
     }
@@ -110,7 +126,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     else {
       val playerState = playerToState(pls.head)
       if (playerState.canAccomodateBuilding) {
-        pls.head ! SelectBuilding
+        tellAll(pls.head, SelectBuilding)
         goto(BuilderProcess) using DoOnceEach(pls)
       } else handleBuilder(pls.tail)
     }
@@ -121,90 +137,179 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     else {
       val playerState = playerToState(pls.head)
       if (playerState.hasActiveBuilding(University)) {
-        pls.head ! SelectColonist
+        tellAll(pls.head, SelectColonist)
         goto(BuilderProcessUniversity) using DoOnceEach(pls)
       } else handleBuilder(pls.tail)
     }
   }
 
+  def endCaptainRole: State = {
+    gameState.clearShips
+    //tell player to clear ships. Logic check is done by local gameState
+    tellEach(GotShipToClear)
+    endRole
+  }
+
+  def handleMayorStart: State = {
+    val colPerPlayer = gameState.doMayor
+    tellAll(playersOrder(0), GotColonists(colPerPlayer._1))
+    tellAll(playersOrder(1), GotColonists(colPerPlayer._2))
+    tellEach(RearrangeColonists)
+    goto(MayorProcess) using DoOnceUntilSuccess(Set(playerOne, playerTwo))
+  }
+
+  def handleCaptain(pls: List[ActorRef]): State = {
+    if (pls.isEmpty){
+      val playersStateToKeepGoods = gameState.orderPlayers.filter(_.goods.sum > 0)
+      val playersToKeepGoods = (playersStateToKeepGoods map stateToPlayer).toSet
+      if (playersToKeepGoods.isEmpty) 
+        endCaptainRole
+      else goto(CaptainProcess) using DoOnceUntilSuccess(playersToKeepGoods)
+    }
+    else {
+      val player = pls.head
+      val playerState = playerToState(player)
+      if (gameState.canShipGoodsSomewhere(playerState)){
+        tellAll(player, SelectGoodToShip)
+        goto(CaptainProcess) using DoUntilSuccess(pls)
+      } else handleCaptain(pls.tail)
+    }
+  }
+
   startWith(RoleProcess, DoOnce(playerOne))
+
+  def handoutRole(player: ActorRef, role: Role) = {
+    val money = gameState.givePickerRole(role)
+    tellAll(player, GotRole(role))
+    if (role == Prospector)
+      tellAll(player, GotDoubloons(money+1))
+    else
+      tellAll(player, GotDoubloons(money))
+  }
 
   when(RoleProcess){
     case Event(Prospector, DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Prospector)) {
-        gameState.givePickerRole(Prospector)
-        gameState.doProspect
+        handoutRole(player, Prospector)
         stay using DoOnce(getNextRolePicker)
       } else stay
     }
 
     case Event(Craftsman, p @ DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Craftsman)) {
-        gameState.givePickerRole(Craftsman)
-        gameState.craft
-        sender ! SelectGoodToProduce
+        handoutRole(player, Craftsman)
+        val gbpair = gameState.craft
+        tellAll(playerOne, GotGoods(gbpair._1))
+        tellAll(playerTwo, GotGoods(gbpair._2))
+        tellAll(player, SelectGoodToProduce)
         goto(CraftsmanProcess) using p
       } else stay
     }
 
     case Event(Settler, DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Settler)) {
-        gameState.givePickerRole(Settler)
-        handleHacienda(playerOrder)
+        handoutRole(player, Settler)
+        handleHacienda(playersOrder)
       } else stay
     }
 
     case Event(Trader, DoOnce(player)) => {
       if (sender == player) {
-        gameState.givePickerRole(Trader)
-        handleTrader(playerOrder)
+        handoutRole(player, Trader)
+        handleTrader(playersOrder)
       } else stay
     }
 
 
     case Event(Builder, DoOnce(player)) => {
       if (sender == player){
-        gameState.givePickerRole(Builder)
-        handleBuilder(playerOrder)
+        handoutRole(player, Builder)
+        handleBuilder(playersOrder)
       } else stay
     }
 
     case Event(Mayor, DoOnce(player)) => {
       if(sender.equals(player)) {
-        gameState.givePickerRole(Mayor)
-        player ! SelectColonist
+        handoutRole(player, Mayor)
+        tellAll(player, SelectColonist)
         goto(MayorProcess) using DoOnce(player)
       } else stay
     }
 
-    /* More roles to implement
+    
     case Event(Captain, DoOnce(player)) => {
       if(sender == player) {
-        gameState.givePickerRole(Captain)
-        //TODO
-      }
-    }*/
+        handoutRole(player, Captain)
+        handleCaptain(playersOrder)
+      } else stay
+    }
 
+  }
+
+  when(CaptainProcess){
+    
+    /*
+     * Deal with player chose not to ship despite having something to ship
+     * Only allowed if the only valid ship is player's own wharf
+     */
+    case Event(NoneSelected, DoUntilSuccess(playerList)) => {
+      val player = playerList.head
+      if (sender == player) {
+        val playerState = playerToState(player)
+        if (gameState.canShipWharfOnly(playerState)) 
+          handleCaptain(playerList.tail)
+        else {
+          player ! SelectGoodToShip
+          stay
+        }
+      } else stay
+    }
+
+    case Event(GoodAndShipSelected(good, ship), DoUntilSuccess(playerList)) => {
+      val player = playerList.head
+      val playerState = playerToState(player)
+      if (sender == player){
+        if (gameState.canShipGoods(good, ship, playerState)) {
+          val (numGood, victoryPoints) = gameState.doShipGoods(good, ship, playerState)
+          tellAll(player, GotGoodShipped(good, numGood))
+          tellAll(player, GotVictoryPoints(victoryPoints))
+          handleCaptain(playerList.tail :+ player)
+        } else {
+          player ! SelectGoodToShip
+          stay
+        }
+      } else stay
+    }
+
+    case Event(GoodToKeepSelected(goodList), DoOnceUntilSuccess(playerSet)) => {
+      if(playerSet.contains(sender)){
+        val pl = playerToState(sender)
+        if (gameState.canKeepGoods(pl, goodList)) {
+          val goodThrown = gameState.doKeepGoods(pl,goodList) 
+          tellAll(sender, GotGoodToKeep(goodList))
+          val pset2 = playerSet - sender
+          if (pset2.isEmpty) endCaptainRole else stay using DoOnceUntilSuccess(pset2)
+        } else {
+          sender ! SelectGoodToKeep
+          stay
+        }
+      } else stay
+
+    }
   }
 
   when(MayorProcess){
 
     case Event(NoneSelected, DoOnce(player)) => {
-      if (sender == player){
-        gameState.doMayor
-        playerOne ! RearrangeColonists
-        playerTwo ! RearrangeColonists
-        stay using DoOnceUntilSuccess(Set(playerOne, playerTwo))
-      } else stay
+      if (sender == player) handleMayorStart else stay
     }
 
     case Event(ColonistSelected, DoOnce(player)) => {
       if (sender == player) {
-        val pl = playerToState(player)
-        pl.colonistsSpare += 1
-        playerOne ! RearrangeColonists
-        playerTwo ! RearrangeColonists
-        stay using DoOnceUntilSuccess(Set(playerOne, playerTwo))
+        val plState = playerToState(player)
+        plState.colonistsSpare += 1
+        tellAll(sender, GotColonists(1))
+        handleMayorStart
       } else stay
     }
 
@@ -213,9 +318,13 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
         val pl = playerToState(sender) 
         if (gameState.isValidColonistsArrangement(pl, colP, proB, purB, colS)) {
           pl.assignColonistsArrangement(colP, proB, purB, colS)
+          tellAll(sender, GotColonistsRearranged(colP, proB, purB, colS))
           val pset2 = pset - sender
           if (pset2.isEmpty) endRole else stay using DoOnceUntilSuccess(pset2)
-        } else stay
+        } else {
+          sender ! RearrangeColonists
+          stay
+        }
       } else stay
     }
   }
@@ -224,9 +333,12 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
 
     case Event(NoneSelected, DoOnceEach(playerList)) => handleBuilder(playerList.tail)
     case Event(BuildingSelected(building), DoOnceEach(playerList)) => {
-      val playerState = playerToState(playerList.head)
-      if (sender == playerList.head && gameState.canBuild(building, playerState)) {
-        gameState.giveBuilding(building, playerState)
+      val player = playerList.head
+      val playerState = playerToState(player)
+      if (sender == player && gameState.canBuild(building, playerState)) {
+        val buildingCost = gameState.giveBuilding(building, playerState)
+        tellAll(player, GotBuilding(building))
+        tellAll(player, GotDoubloons(-buildingCost))
         handleBuilderUniversity(playerList)
       } else stay
     }
@@ -236,8 +348,10 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   when(BuilderProcessUniversity){
     case Event(NoneSelected, DoOnceEach(playerList)) => handleBuilder(playerList.tail)
     case Event(ColonistSelected, DoOnceEach(playerList)) => {
-      val playerState = playerToState(playerList.head)
+      val player = playerList.head
+      val playerState = playerToState(player)
       playerState.addColonistByUniversity
+      tellAll(player, GotColonistByUniversity)
       handleBuilder(playerList.tail)
     }
   }
@@ -247,9 +361,12 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(NoneSelected, DoOnceEach(playerList)) => handleTrader(playerList.tail)
 
     case Event(GoodSelected(good), DoOnceEach(playerList)) => {
-      val playerState = playerToState(playerList.head)
-      if (sender == playerList.head && gameState.canTradeGood(good, playerState)) {
-        gameState.doTrade(good, playerState)
+      val player = playerList.head
+      val playerState = playerToState(player)
+      if (sender == player && gameState.canTradeGood(good, playerState)) {
+        val money = gameState.doTrade(good, playerState)
+        tellAll(player, GotTrade(good))
+        tellAll(player, GotDoubloons(money))
         handleTrader(playerList.tail)
       } else stay
     }
@@ -259,10 +376,12 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(NoneSelected, DoOnceEach(playerList)) => handleNoHacienda(playerList.tail)
 
     case Event(PlantationExtraAgreed, DoOnceEach(playerList)) => {
-      if (sender == playerList.head) {
-        val playerState = playerToState(playerList.head)
+      val player = playerList.head
+      if (sender == player) {
+        val playerState = playerToState(player)
         val plant = gameState.getRandomPlantation
         playerState.addPlantation(plant)
+        tellAll(player, GotPlantation(plant))
         handleNoHacienda(playerList)
       } else stay
     }
@@ -272,9 +391,11 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(NoneSelected, DoOnceEach(playerList)) => handleHacienda(playerList.tail)
     
     case Event(PlantationSelected(plant), DoOnceEach(playerList)) => {
-      val playerState = playerToState(playerList.head)
-      if (sender == playerList.head && gameState.canGetPlantation(plant, playerState)) {
+      val player = playerList.head
+      val playerState = playerToState(player)
+      if (sender == player && gameState.canGetPlantation(plant, playerState)) {
         playerState.addPlantation(plant)
+        tellAll(player, GotPlantation(plant))
         handleHospice(playerList)
       } else stay
     }
@@ -284,8 +405,10 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     case Event(NoneSelected, DoOnceEach(playerList)) => handleHacienda(playerList.tail)
 
     case Event(ColonistSelected, DoOnceEach(playerList)) => {
-      val playerState = playerToState(playerList.head)
+      val player = playerList.head
+      val playerState = playerToState(player)
       playerState.addColonistByHospice
+      tellAll(player, GotColonistByHospice)
       handleHacienda(playerList.tail)
     }
   }
@@ -296,6 +419,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
         val pl = playerToState(player)
         if (gameState.canGetGood(good, pl)) {
           gameState.giveGood(good, pl)
+          tellAll(player, GotGood(good))
           endRole
         } else stay
       } else stay

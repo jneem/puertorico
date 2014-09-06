@@ -1,6 +1,7 @@
 
 package puertorico
 import scala.collection.mutable.HashMap
+import scala.collection.immutable.{HashMap => ImHashMap}
 import scala.util.Random
 
 
@@ -10,9 +11,11 @@ class GameState {
 
   val playerOneState = new PlayerState
   val playerTwoState = new PlayerState
-  //will soon be obsolete, replaced by getPlayer
   var governor = playerOneState
   var rolePicker = playerOneState
+
+  //assign players an integer
+  val playerNum = ImHashMap(playerOneState -> 0, playerTwoState -> 1)
 
   val victoryPointsMax = 75
   def victoryPointsUsed = playerOneState.victoryPoints + playerTwoState.victoryPoints
@@ -77,9 +80,12 @@ class GameState {
   
   def isRoleAvailable(role: Role): Boolean = rolesDoubloons(role) > -1
 
-  def givePickerRole(role: Role){
-      rolePicker.doubloons += rolesDoubloons(role)
-      rolesDoubloons(role) = -1
+  //Returns the number of doubloons on the role
+  def givePickerRole(role: Role): Int = {
+    val money = rolesDoubloons(role)
+    rolePicker.doubloons += rolesDoubloons(role)
+    rolesDoubloons(role) = -1
+    money
   }
   def resetRoles = {
     for (role <- rolesDoubloons.keys) rolesDoubloons(role) += 1 
@@ -103,10 +109,17 @@ class GameState {
   def canGetGood(good: Good, currentPlayerState: PlayerState): Boolean = 
     currentPlayerState.productionBundle(good) > 0 && goodsRemain(good) > 0
   
-  def craft = for { good <- goodsAll ; player <- orderPlayers} {
-    val produce = player.productionBundle(good) min goodsRemain(good)
-    player.goods(good) += produce
-    goodsRemain(good) -= produce
+  def craft: (GoodBundle, GoodBundle) = { 
+    val gb1 = GoodBundle.empty
+    val gb2 = GoodBundle.empty
+    for { good <- goodsAll ; player <- orderPlayers} {
+      val produce = player.productionBundle(good) min goodsRemain(good)
+      player.goods(good) += produce
+      if (player == playerOneState) gb1(good) += produce
+      else gb2(good) += produce
+      goodsRemain(good) -= produce
+    }
+    (gb1, gb2)
   }
 
   def giveGood(good: Good, pl: PlayerState) = {
@@ -119,10 +132,15 @@ class GameState {
   def canBuild(b: Building, pl: PlayerState) = pl.buildings.spaceRemaining >= b.size && 
     !pl.hasBuilding(b) && pl.doubloons >= b.cost && buildingsRemaining(b) > 0
 
-  def giveBuilding(b: Building, pl: PlayerState) = {
+  //returns the number of doubloons charged
+  def giveBuilding(b: Building, pl: PlayerState): Int = {
     pl.addBuilding(b)
-    pl.doubloons -= b.cost
     buildingsRemaining(b) -= 1
+    val builderDiscount = if(pl == rolePicker) 1 else 0
+    val quarryDiscount = pl.numberActiveQuarry min b.victoryPoints
+    val actualCost = 0 max b.cost - quarryDiscount - builderDiscount 
+    pl.doubloons -= actualCost
+    actualCost
   }
 
   //Trader logic
@@ -135,11 +153,12 @@ class GameState {
     currentPlayerState.goods(good) > 0 && !tradingHouse.isFull && 
    (!tradingHouse.contains(good) || currentPlayerState.hasActiveBuilding(Office))
 
-  def doTrade(good: Good, pl: PlayerState) = {
+  def doTrade(good: Good, pl: PlayerState): Int = {
     pl.goods(good) -= 1
     tradingHouse.goods(good) += 1
-    pl.doubloons += goodsPrice(good)
-    if (rolePicker == pl) pl.doubloons += 1
+    val money = if (rolePicker == pl) goodsPrice(good) else goodsPrice(good) + 1
+    pl.doubloons += money
+    money
   }
   
   //Settler logic
@@ -168,11 +187,12 @@ class GameState {
     (firstPlayerGet, secondPlayerGet)
   }
 
-  def doMayor = {
+  def doMayor: (Int, Int) = {
     val cpl = colonistsPerPlayer
     val playerOrder = orderPlayers
     playerOrder(0).colonistsSpare += cpl._1
     playerOrder(1).colonistsSpare += cpl._2
+    cpl
   }
 
   //since this is done by the server, better to leave in gameState
@@ -201,12 +221,63 @@ class GameState {
 
   //Captain logic
   def canShipGoods(good: Good, ship: Ship, currentPlayerState: PlayerState): Boolean = {
-    val theOtherShip = otherShip(ship)
-    val isBestBoat = !ship.good.isEmpty || !theOtherShip.good.isEmpty || theOtherShip.maxLoadable(good) < ship.maxLoadable(good)
-    currentPlayerState.goods(good) > 0 && ship.maxLoadable(good) > 0 && isBestBoat
+    if (ship == wharf) {
+      currentPlayerState.hasActiveBuilding(Wharf) && ship.canLoad(good)
+    } else {
+      val theOtherShip = otherShip(ship)
+      val isBestBoat = !ship.good.isEmpty || !theOtherShip.good.isEmpty || theOtherShip.maxLoadable(good) < ship.maxLoadable(good)
+      currentPlayerState.goods(good) > 0 && ship.maxLoadable(good) > 0 && isBestBoat
+    }
   }
 
-  def canKeepGoods(player: PlayerState, goodList: List[(Good, Int)]): Boolean = {
+  def canShipGoodsSomewhere(pl: PlayerState): Boolean = {
+    val allShips = wharf +: ships
+    val shipAny = for {
+      ship <- allShips
+      good <- goodsAll
+    } yield canShipGoods(good, ship, pl)
+    shipAny reduce (_ || _)
+  }
+
+  def canShipWharfOnly(pl: PlayerState): Boolean = {
+    val shipAnyOnOther = for {
+      ship <- ships
+      good <- goodsAll
+    } yield canShipGoods(good, ship, pl)
+    val shipAnyOnWharf = for { good <- goodsAll } yield canShipGoods(good, wharf, pl)
+    !(shipAnyOnOther reduce (_ || _)) && (shipAnyOnWharf reduce (_ || _))
+  }
+
+  /*
+   * do the shipping, and return 
+   * (number of goods shipped, victory points earned)
+   */
+  def doShipGoods(good: Good, ship: Ship, pl: PlayerState): (Int, Int) = {
+    val numToShip = ship.maxLoadable(good) min pl.goods(good)
+    pl.goods(good) -= numToShip
+    ship.load(good, numToShip)
+    val captainPoint = if(pl == rolePicker && !pl.recentlyShipped) 1 else 0
+    val harborPoint = if(pl.hasActiveBuilding(Harbor)) 1 else 0
+    //flag that shipment is succesful in player
+    pl.recentlyShipped = true
+    (numToShip, captainPoint + harborPoint + numToShip)
+  }
+
+  //clear ships at the end of the captain role if needed
+  def clearShips = {
+   for (ship <- ships) {
+     if(ship.spaceRemaining == 0){
+       goodsRemain(ship.good.get) += ship.spaceUsed
+       ship.clear
+     }
+   }
+   if(wharf.spaceUsed > 0){
+     goodsRemain(wharf.good.get) += wharf.spaceUsed
+     wharf.clear
+   }
+  }
+
+  def canKeepGoods(player: PlayerState, goodList: ImHashMap[Good, Int]): Boolean = {
     //has the right number of good
     val goodCount = goodList map {
       case (good, count) => player.goods(good) >= count
@@ -218,7 +289,7 @@ class GameState {
     val bwNum = if (player.hasBuilding(BigWarehouse)) 2 else 0
     val warehouseSpace = swNum + bwNum
     
-    val spaceOk = goodList.length match {
+    val spaceOk = goodList.size match {
       case 1 => warehouseSpace > 0 || goodList.head._2 == 1
       case 2 => warehouseSpace > 1 || (warehouseSpace == 1 && goodList.count(_._2 == 1) > 0)
       case 3 => warehouseSpace > 2 || (warehouseSpace == 2 && goodList.count(_._2 == 1) > 0)
@@ -226,6 +297,16 @@ class GameState {
     }
 
     goodCountOk && spaceOk
+  }
+
+  def doKeepGoods(pl: PlayerState, goodList: ImHashMap[Good, Int]): ImHashMap[Good, Int] = {
+    // return goods to to goodsRemain
+    val gthrow = pl.goodsToThrow(goodList)
+    for( (good,num) <- gthrow ) goodsRemain(good) += num
+    // assign the new goods bundle to player
+    pl.assignGoodToKeep(goodList)
+    // return stuff
+    gthrow
   }
 
 

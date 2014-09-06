@@ -1,5 +1,6 @@
 package puertorico
 import scala.collection.mutable.HashMap
+import scala.collection.immutable.{HashMap => ImHashMap}
 import scala.collection.mutable.MutableList
 
 //changed to case class for easy copy
@@ -17,6 +18,8 @@ case class IslandState(
    * Tally active production of raw materials by good type
    */
   def productionRawBundle: GoodBundle = colonistsPlantation.goodsOnly
+
+  def numberActiveQuarry: Int = colonistsPlantation(Quarry)
 }
 
 
@@ -115,6 +118,7 @@ class PlayerState {
   //for information transfer and dealing with things like Hospice
   var recentlyAddedBuilding: Building = EmptyBuilding
   val recentlyAddedPlantations = MutableList.empty[Plantation]
+  var recentlyShipped: Boolean = false
 
   //Make hard copy
   def copy = {
@@ -169,6 +173,7 @@ class PlayerState {
   def resetTemporaryParam = {
     recentlyAddedBuilding = EmptyBuilding
     recentlyAddedPlantations.clear()
+    recentlyShipped = false
   }
 
   def assignColonistsArrangement(cp: PlantationBundle, 
@@ -183,5 +188,19 @@ class PlayerState {
     buildings.purpleBuildings.copyFromList(purB)
     colonistsSpare = cs
   }
+
+  def goodsToThrow(goodList: ImHashMap[Good, Int]): ImHashMap[Good, Int] = {
+    val gl: List[(Good, Int)] = GameState.goodsAll map {
+      good => if(goodList.contains(good)) (good, goods(good) - goodList(good)) else (good, goods(good))
+    }
+    ImHashMap.empty[Good, Int] ++ gl.filter(_._2 > 0)
+  }
+
+  def assignGoodToKeep(goodList: ImHashMap[Good, Int]) = {
+    goods = GoodBundle.empty
+    for (good <- goodList.keys) goods(good) += goodList(good) 
+  }
+
+  def numberActiveQuarry: Int = island.numberActiveQuarry
 }
 
