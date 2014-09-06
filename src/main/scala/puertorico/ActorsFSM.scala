@@ -197,14 +197,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   }
 
   when(RoleProcess){
-    case Event(RoleChosen(Prospector), DoOnce(player)) => {
+    case Event(Prospector, DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Prospector)) {
         handoutRole(player, Prospector)
         stay using DoOnce(getNextRolePicker)
       } else stay
     }
 
-    case Event(RoleChosen(Craftsman), p @ DoOnce(player)) => {
+    case Event(Craftsman, p @ DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Craftsman)) {
         handoutRole(player, Craftsman)
         val gbpair = gameState.craft
@@ -215,14 +215,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       } else stay
     }
 
-    case Event(RoleChosen(Settler), DoOnce(player)) => {
+    case Event(Settler, DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Settler)) {
         handoutRole(player, Settler)
         handleHacienda(playersOrder)
       } else stay
     }
 
-    case Event(RoleChosen(Trader), DoOnce(player)) => {
+    case Event(Trader, DoOnce(player)) => {
       if (sender == player) {
         handoutRole(player, Trader)
         handleTrader(playersOrder)
@@ -230,14 +230,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     }
 
 
-    case Event(RoleChosen(Builder), DoOnce(player)) => {
+    case Event(Builder, DoOnce(player)) => {
       if (sender == player){
         handoutRole(player, Builder)
         handleBuilder(playersOrder)
       } else stay
     }
 
-    case Event(RoleChosen(Mayor), DoOnce(player)) => {
+    case Event(Mayor, DoOnce(player)) => {
       if(sender.equals(player)) {
         handoutRole(player, Mayor)
         tellAll(player, SelectColonist)

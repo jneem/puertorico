@@ -20,6 +20,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     "respond correctly" in {
       val probe = TestProbe()
+      roleBoss ! StartGame
       playerOne.tell(ChooseRole, roleBoss)
       roleBoss.tell(Prospector, playerOne)
       roleBoss.tell(GameStateQuery, probe.ref)

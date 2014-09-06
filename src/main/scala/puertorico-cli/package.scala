@@ -162,7 +162,7 @@ package object puertorico_cli {
                  s"Choose the ${name} role.",
                  () => ActionResult(s"You chose ${name}.",
                                     Some(nextState),
-                                    Some(RoleChosen(r))))
+                                    Some(r)))
     }
 
     val choices = List(
