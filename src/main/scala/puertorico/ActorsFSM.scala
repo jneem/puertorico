@@ -166,7 +166,10 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       val playersToKeepGoods = (playersStateToKeepGoods map stateToPlayer).toSet
       if (playersToKeepGoods.isEmpty) 
         endCaptainRole
-      else goto(CaptainProcess) using DoOnceUntilSuccess(playersToKeepGoods)
+      else {
+        for( pl <- playersToKeepGoods) tellAll(pl, SelectGoodToKeep)
+        goto(CaptainProcess) using DoOnceUntilSuccess(playersToKeepGoods)
+      }
     }
     else {
       val player = pls.head
@@ -268,7 +271,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
         if (gameState.canShipWharfOnly(playerState)) 
           handleCaptain(playerList.tail)
         else {
-          player ! SelectGoodToShip
+          player ! (playerNum(player), SelectGoodToShip)
           stay
         }
       } else stay
@@ -284,7 +287,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
           tellAll(player, GotVictoryPoints(victoryPoints))
           handleCaptain(playerList.tail :+ player)
         } else {
-          player ! SelectGoodToShip
+          player ! (playerNum(player), SelectGoodToShip)
           stay
         }
       } else stay
@@ -299,7 +302,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
           val pset2 = playerSet - sender
           if (pset2.isEmpty) endCaptainRole else stay using DoOnceUntilSuccess(pset2)
         } else {
-          sender ! SelectGoodToKeep
+          sender ! (playerNum(sender), SelectGoodToKeep)
           stay
         }
       } else stay
@@ -331,7 +334,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
           val pset2 = pset - sender
           if (pset2.isEmpty) endRole else stay using DoOnceUntilSuccess(pset2)
         } else {
-          sender ! RearrangeColonists
+          sender ! (playerNum(sender), RearrangeColonists)
           stay
         }
       } else stay

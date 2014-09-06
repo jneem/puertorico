@@ -156,7 +156,7 @@ class GameState {
   def doTrade(good: Good, pl: PlayerState): Int = {
     pl.goods(good) -= 1
     tradingHouse.goods(good) += 1
-    val money = if (rolePicker == pl) goodsPrice(good) else goodsPrice(good) + 1
+    val money = if (rolePicker == pl) goodsPrice(good) + 1 else goodsPrice(good)
     pl.doubloons += money
     money
   }
@@ -165,7 +165,7 @@ class GameState {
   def canGetPlantation(plant: Plantation, playerState: PlayerState): Boolean = 
     plantationsVisible(plant) > 0 &&
       playerState.island.spaceRemaining > 0 &&
-      (playerState == rolePicker || playerState.hasActiveBuilding(ConstructionHut))
+      plant != Quarry || (playerState == rolePicker || playerState.hasActiveBuilding(ConstructionHut))
 
   def canAccomodatePlantation(playerState: PlayerState) = playerState.island.spaceRemaining > 0
 
@@ -228,8 +228,8 @@ class GameState {
     val purpB = purpleBuildings map {
       case (building, colonist) => player.hasBuilding(building) && building.colonistsMax >= colonist
     }
-    val prodOk = prodB.reduce(_ && _) 
-    val purpOk = purpB.reduce(_ && _)
+    val prodOk = prodB.isEmpty || prodB.reduce(_ && _) 
+    val purpOk = purpB.isEmpty || purpB.reduce(_ && _)
     totalOk && prodOk && purpOk
   }
 

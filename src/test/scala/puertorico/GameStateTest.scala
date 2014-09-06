@@ -68,7 +68,7 @@ class GameStateTest extends FlatSpec {
     gameState.doTrade(Sugar, p1)
     assert(gameState.tradingHouse.contains(Sugar) === true)
     assert(gameState.canTradeSomeGoods(p1) === false)
-    assert(p1.doubloons == 3)
+    assert(p1.doubloons == 4)
   }
 
   it should "handles construction huts correctly" in {
