@@ -93,5 +93,4 @@ class GameStateTest extends FlatSpec {
     assert(p1.recentlyAddedPlantations.isEmpty === true)
   }
 
-
 }

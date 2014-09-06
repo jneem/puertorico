@@ -2,10 +2,9 @@ package puertorico
 import akka.actor._
 import scala.collection.immutable.HashMap
 
-
 //RoleBoss and Player conversation
 
-case object ChooseRole 
+case object ChooseRole
 case class GotRole(role: Role)
 
 case class GotDoubloons(doubloons: Int)
@@ -22,7 +21,7 @@ case class GotVictoryPoints(num: Int)
 case object GotShipToClear
 
 //Craftsman and Player conversation
-case object SelectGoodToProduce 
+case object SelectGoodToProduce
 case class GoodSelected(good: Good)
 
 //Settler and Player conversation
@@ -36,10 +35,14 @@ case object NoneSelected //common to many
 case object SelectColonist //common to Settler
 case object ColonistSelected
 case object RearrangeColonists
-case class ColonistsRearranged(colonistsPlantation: PlantationBundle, 
-  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)], colonistsSpare: Int) 
-case class GotColonistsRearranged(colonistsPlantation: PlantationBundle, 
-  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)], colonistsSpare: Int) 
+case class ColonistsRearranged(
+  colonistsPlantation: PlantationBundle,
+  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)], colonistsSpare: Int
+)
+case class GotColonistsRearranged(
+  colonistsPlantation: PlantationBundle,
+  productionBuildings: List[(ProductionBuilding, Int)], purpleBuildings: List[(PurpleBuilding, Int)], colonistsSpare: Int
+)
 
 //Trader and Player conversation
 case object SelectGoodToTrade
@@ -54,7 +57,4 @@ case class GoodAndShipSelected(good: Good, ship: Ship)
 case object SelectGoodToKeep
 case class GoodToKeepSelected(goodList: HashMap[Good, Int])
 case class GotGoodToKeep(goodList: HashMap[Good, Int])
-
-
-
 

@@ -1,12 +1,13 @@
 package puertorico
 import scala.collection.mutable.HashMap
-import scala.collection.immutable.{HashMap => ImHashMap}
+import scala.collection.immutable.{ HashMap => ImHashMap }
 import scala.collection.mutable.MutableList
 
 //changed to case class for easy copy
 case class IslandState(
-  val plantations: PlantationBundle = PlantationBundle.empty, 
-  val colonistsPlantation: PlantationBundle = PlantationBundle.empty) {
+    val plantations:         PlantationBundle = PlantationBundle.empty,
+    val colonistsPlantation: PlantationBundle = PlantationBundle.empty
+) {
 
   val size: Int = 12
 
@@ -21,7 +22,6 @@ case class IslandState(
 
   def numberActiveQuarry: Int = colonistsPlantation(Quarry)
 }
-
 
 class BuildingBundle[T <: Building] {
   val buildingMap = new HashMap[T, Int]
@@ -48,12 +48,11 @@ class BuildingBundle[T <: Building] {
   }
 }
 
-
 class BuildingState {
   val size: Int = 12
   val productionBuildings = new BuildingBundle[ProductionBuilding]
   val purpleBuildings = new BuildingBundle[PurpleBuilding]
-  
+
   def spaceUsed = productionBuildings.spaceUsed + purpleBuildings.spaceUsed
   def spaceRemaining = size - spaceUsed
 
@@ -99,9 +98,8 @@ class BuildingState {
     case (x: ProductionBuilding) => productionBuildings.buildingMap(x) += 1
     case (x: PurpleBuilding) => purpleBuildings.buildingMap(x) += 1
   }
-    
-}
 
+}
 
 class PlayerState {
   var island = new IslandState
@@ -112,7 +110,7 @@ class PlayerState {
   var doubloons = 0
   var colonistsSpare = 0 // colonists in San Juan
 
-  def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax 
+  def colonistsMax = colonistsSpare + island.colonistsMax + buildings.colonistsMax
   def colonistsUsed = island.colonistsUsed + buildings.colonistsUsed
 
   //for information transfer and dealing with things like Hospice
@@ -137,7 +135,7 @@ class PlayerState {
    */
   def productionBundle = GoodBundle(
     island.productionRawBundle(Corn), island.productionRawBundle(Indigo) min buildings.productionBundle(Indigo), island.productionRawBundle(Sugar) min buildings.productionBundle(Sugar), island.productionRawBundle(Tobacco) min buildings.productionBundle(Tobacco), island.productionRawBundle(Coffee) min buildings.productionBundle(Coffee)
-    )
+  )
 
   def hasBuilding(b: Building): Boolean = buildings.hasBuilding(b)
   def hasActiveBuilding(b: Building): Boolean = buildings.hasActiveBuilding(b)
@@ -176,12 +174,14 @@ class PlayerState {
     recentlyShipped = false
   }
 
-  def assignColonistsArrangement(cp: PlantationBundle, 
-                                  proB: List[(ProductionBuilding, Int)], 
-                                  purB: List[(PurpleBuilding, Int)], 
-                                  cs: Int) = {
+  def assignColonistsArrangement(
+    cp:   PlantationBundle,
+    proB: List[(ProductionBuilding, Int)],
+    purB: List[(PurpleBuilding, Int)],
+    cs:   Int
+  ) = {
 
-  GameState.plantationsAll foreach {
+    GameState.plantationsAll foreach {
       plant => island.colonistsPlantation(plant) = cp(plant)
     }
     buildings.productionBuildings.copyFromList(proB)
@@ -191,14 +191,14 @@ class PlayerState {
 
   def goodsToThrow(goodList: ImHashMap[Good, Int]): ImHashMap[Good, Int] = {
     val gl: List[(Good, Int)] = GameState.goodsAll map {
-      good => if(goodList.contains(good)) (good, goods(good) - goodList(good)) else (good, goods(good))
+      good => if (goodList.contains(good)) (good, goods(good) - goodList(good)) else (good, goods(good))
     }
     ImHashMap.empty[Good, Int] ++ gl.filter(_._2 > 0)
   }
 
   def assignGoodToKeep(goodList: ImHashMap[Good, Int]) = {
     goods = GoodBundle.empty
-    for (good <- goodList.keys) goods(good) += goodList(good) 
+    for (good <- goodList.keys) goods(good) += goodList(good)
   }
 
   def numberActiveQuarry: Int = island.numberActiveQuarry

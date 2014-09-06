@@ -1,13 +1,13 @@
 package puertorico
 
-import akka.testkit.{TestProbe, TestKit}
+import akka.testkit.{ TestProbe, TestKit }
 import akka.actor._
-import org.scalatest.{FlatSpecLike, BeforeAndAfterAll}
+import org.scalatest.{ FlatSpecLike, BeforeAndAfterAll }
 
 class PassthroughActorTest(_system: ActorSystem) extends TestKit(_system) with FlatSpecLike with BeforeAndAfterAll {
 
   behavior of "PassthroughActor"
-  
+
   def this() = this(ActorSystem("PassthroughActorTest"))
 
   override def afterAll {

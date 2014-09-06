@@ -1,6 +1,6 @@
 package puertorico_cli
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ ActorSystem, Props }
 
 object PuertoRicoCLI extends App {
   val system = ActorSystem("PuertoRicoCLISystem")

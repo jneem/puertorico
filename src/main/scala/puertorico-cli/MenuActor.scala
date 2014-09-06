@@ -1,6 +1,6 @@
 package puertorico_cli
 
-import akka.actor.{Actor, ActorSystem, Props, ActorRef}
+import akka.actor.{ Actor, ActorSystem, Props, ActorRef }
 import java.io.PrintStream
 import puertorico._
 
@@ -76,12 +76,12 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   }
 
   def onEOF() {
-      println(s"end of input, terminating...")
-      system.shutdown()
+    println(s"end of input, terminating...")
+    system.shutdown()
   }
 
   def receive = p1EnterName
-  
+
   def p1EnterName: Receive = {
     case StdinMonitor.Input(input) => {
       p1Name = input.trim
@@ -136,7 +136,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
           // TODO: should really send it through either p1Proxy or p2Proxy
           p1Proxy ! result.message.get
         }
-        
+
         if (result.newState != None) {
           val newState = result.newState.get
 

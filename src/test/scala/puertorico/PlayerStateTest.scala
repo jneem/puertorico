@@ -19,7 +19,7 @@ class BuildingStateTest extends FlatSpec {
     bs.productionBuildings.buildingMap += ((BigSugar, 2))
     bs.productionBuildings.buildingMap += ((SmallIndigo, 1))
     bs.productionBuildings.buildingMap += ((SmallSugar, 1))
-    
+
     assert(bs.spaceUsed === 3)
     assert(bs.spaceRemaining === 9)
     assert(bs.colonistsMax === 5)
@@ -31,7 +31,7 @@ class BuildingStateTest extends FlatSpec {
     assert(bs.colonistsMax === 6)
     assert(bs.colonistsUsed === 4)
 
-    assert(bs.productionBundle === GoodBundle(0,1,3,0,0))
+    assert(bs.productionBundle === GoodBundle(0, 1, 3, 0, 0))
   }
 
   it should "add buildings" in {
@@ -73,7 +73,7 @@ class PlayerStateTest extends FlatSpec {
     playerState.addBuilding(Residence)
     playerState.addColonistOnBuilding(BigSugar)
     playerState.addColonistOnBuilding(Residence)
-    
+
     assert(playerState.buildings.productionBuildings.buildingMap(BigSugar) === 1)
     assert(playerState.buildings.purpleBuildings.buildingMap(Residence) === 1)
 

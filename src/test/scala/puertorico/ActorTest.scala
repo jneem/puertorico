@@ -1,13 +1,13 @@
 package puertorico
 
-import akka.testkit.{TestFSMRef, TestKit, TestProbe}
+import akka.testkit.{ TestFSMRef, TestKit, TestProbe }
 import akka.actor._
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FlatSpec
 import scala.concurrent.duration._
-import scala.collection.immutable.{HashMap => ImHashMap}
+import scala.collection.immutable.{ HashMap => ImHashMap }
 
 class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -22,48 +22,48 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
   //test for one role boss
 
   def startGame = {
-      val probe1 = TestProbe()
-      val probe2 = TestProbe()
-      val roleBoss = TestFSMRef(new RoleBoss(probe1.ref, probe2.ref))
+    val probe1 = TestProbe()
+    val probe2 = TestProbe()
+    val roleBoss = TestFSMRef(new RoleBoss(probe1.ref, probe2.ref))
 
-      //tell the players to ignore all messages received
-      probe1.ignoreMsg({case _ => true})
-      probe2.ignoreMsg({case _ => true})
+    //tell the players to ignore all messages received
+    probe1.ignoreMsg({ case _ => true })
+    probe2.ignoreMsg({ case _ => true })
 
-      val probe3 = TestProbe() //used to query game state
-      roleBoss.receive(GameStateQuery, probe3.ref)
-      val gameState = probe3.receiveOne(1.second) match { case (x: GameState) => x }
+    val probe3 = TestProbe() //used to query game state
+    roleBoss.receive(GameStateQuery, probe3.ref)
+    val gameState = probe3.receiveOne(1.second) match { case (x: GameState) => x }
 
-      roleBoss ! StartGame
+    roleBoss ! StartGame
 
-      probe1.ignoreNoMsg()
-      probe2.ignoreNoMsg()
-      (probe1, probe2, roleBoss, gameState)
+    probe1.ignoreNoMsg()
+    probe2.ignoreNoMsg()
+    (probe1, probe2, roleBoss, gameState)
 
   }
   "a single role boss" must {
 
     "start correctly" in {
-      
+
       val probe1 = TestProbe()
       val probe2 = TestProbe()
       val roleBoss = TestFSMRef(new RoleBoss(probe1.ref, probe2.ref))
       val playerOne = probe1.ref
       val playerTwo = probe2.ref
-      
+
       assert(roleBoss.stateName === WaitForStart)
-      
+
       roleBoss ! StartGame
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(playerOne))
-      
+
       val msg = (0, ChooseRole)
-      
+
       probe1.expectMsg(msg)
       probe2.expectMsg(msg)
 
     }
-    
+
     "prospect correctly" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
 
@@ -83,17 +83,17 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       //role boss stays at current state
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
-      
+
     }
 
     "settle without hacienda correctly" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
-      
+
       //initialize game data
       roleBoss.receive(Settler, probe1.ref)
 
       //tell p2 to ignore all messages
-      probe2.ignoreMsg({case _ => true})
+      probe2.ignoreMsg({ case _ => true })
 
       val msg1 = (0, GotRole(Settler))
       val msg2 = (0, GotDoubloons(0))
@@ -119,7 +119,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       probe1.expectNoMsg()
       assert(gameState.playerTwoState.island.plantations(Quarry) == 0)
       assert(roleBoss.stateName === SettlerProcess)
-      
+
       //now player2 pick an allowed plantation
       roleBoss.receive(PlantationSelected(CornPlantation), probe2.ref)
       assert(gameState.plantationsVisible(CornPlantation) === 0)
@@ -127,7 +127,6 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
 
-      
     }
 
     "build correctly" in {
@@ -167,14 +166,12 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       assert(gameState.buildingsRemaining(Hospice) === 0)
       assert(gameState.playerTwoState.hasBuilding(Hospice) === true)
 
-      
-
     }
 
     "trade correctly" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
-      gameState.playerOneState.goods = GoodBundle(1,0,0,0,1)
-      gameState.playerTwoState.goods = GoodBundle(0,2,0,0,2)
+      gameState.playerOneState.goods = GoodBundle(1, 0, 0, 0, 1)
+      gameState.playerTwoState.goods = GoodBundle(0, 2, 0, 0, 2)
 
       roleBoss.receive(Trader, probe1.ref)
 
@@ -203,11 +200,9 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p2 select nothing to trade
       roleBoss.receive(NoneSelected, probe2.ref)
-      assert(gameState.playerTwoState.goods === GoodBundle(0,2,0,0,2))
+      assert(gameState.playerTwoState.goods === GoodBundle(0, 2, 0, 0, 2))
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
-
-      
 
     }
 
@@ -226,7 +221,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       roleBoss.receive(Mayor, probe1.ref)
       probe1.expectMsg((0, GotRole(Mayor)))
       probe1.expectMsg((0, GotDoubloons(0)))
-      probe1.expectMsg((0, SelectColonist)) 
+      probe1.expectMsg((0, SelectColonist))
 
       //have not handed out the colonists until p1 decides if they got extra or not
       assert(gameState.playerOneState.colonistsSpare === 1)
@@ -242,13 +237,13 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       //there are three empty slots on buildings
       probe1.expectMsg((0, GotColonists(2)))
       probe1.expectMsg((1, GotColonists(1)))
-      probe1.expectMsg((0,RearrangeColonists))
+      probe1.expectMsg((0, RearrangeColonists))
       assert(gameState.playerOneState.colonistsSpare === 4)
       assert(gameState.playerTwoState.colonistsSpare === 3)
 
       //hypothetical arrangement
-      val cp1 = PlantationBundle(1,1,0,0,0,0)
-      val cp2 = PlantationBundle(0,0,1,0,0,0)
+      val cp1 = PlantationBundle(1, 1, 0, 0, 0, 0)
+      val cp2 = PlantationBundle(0, 0, 1, 0, 0, 0)
       val proB = List((BigIndigo, 2))
       val purB = List.empty
 
@@ -260,7 +255,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p1 tries an invalid rearrangement
       roleBoss.receive(msg, probe1.ref)
-      probe1.expectMsg((0,RearrangeColonists))
+      probe1.expectMsg((0, RearrangeColonists))
 
       roleBoss.receive(ColonistsRearranged(cp1, List.empty, List.empty, 2), probe1.ref)
       probe1.expectMsg((0, GotColonistsRearranged(cp1, List.empty, List.empty, 2)))
@@ -272,8 +267,8 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //player 2 initiates crafting
       roleBoss.receive(Craftsman, probe2.ref)
-      assert(gameState.playerOneState.goods === GoodBundle(1,0,0,0,0))
-      assert(gameState.playerTwoState.goods === GoodBundle(0,1,0,0,0))
+      assert(gameState.playerOneState.goods === GoodBundle(1, 0, 0, 0, 0))
+      assert(gameState.playerTwoState.goods === GoodBundle(0, 1, 0, 0, 0))
       assert(gameState.goodsRemain(Corn) === 6)
       assert(gameState.goodsRemain(Indigo) === 6)
 
@@ -290,15 +285,15 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     "do captain correctly" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
-      gameState.playerOneState.goods = GoodBundle(1,2,2,1,2)
-      gameState.playerTwoState.goods = GoodBundle(2,1,0,0,3)
+      gameState.playerOneState.goods = GoodBundle(1, 2, 2, 1, 2)
+      gameState.playerTwoState.goods = GoodBundle(2, 1, 0, 0, 3)
       val ship4 = gameState.ships.head
       val ship6 = gameState.ships.tail.head
 
       roleBoss.receive(Captain, probe1.ref)
       probe1.expectMsg((0, GotRole(Captain)))
       probe1.expectMsg((0, GotDoubloons(0)))
-      probe1.expectMsg((0, SelectGoodToShip)) 
+      probe1.expectMsg((0, SelectGoodToShip))
 
       val shipment = GoodAndShipSelected(Corn, ship6)
       roleBoss.receive(shipment, probe1.ref)
@@ -332,8 +327,8 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       //ship status: 4: 4 coffee, 6: 3 corn
       probe1.expectMsg((1, GotGoodShipped(Corn, 2)))
       probe1.expectMsg((1, GotVictoryPoints(2)))
-      assert(gameState.playerOneState.goods === GoodBundle(0,2,2,1,1))
-      assert(gameState.playerTwoState.goods === GoodBundle(0,1,0,0,0))
+      assert(gameState.playerOneState.goods === GoodBundle(0, 2, 2, 1, 1))
+      assert(gameState.playerTwoState.goods === GoodBundle(0, 1, 0, 0, 0))
       probe1.expectMsg((0, SelectGoodToKeep))
       probe1.expectMsg((1, SelectGoodToKeep))
 
@@ -342,8 +337,8 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       //p2 sends in the message first
       roleBoss.receive(GoodToKeepSelected(goodList2), probe2.ref)
       roleBoss.receive(GoodToKeepSelected(goodList1), probe1.ref)
-      assert(gameState.playerOneState.goods === GoodBundle(0,0,0,0,1))
-      assert(gameState.playerTwoState.goods === GoodBundle(0,1,0,0,0))
+      assert(gameState.playerOneState.goods === GoodBundle(0, 0, 0, 0, 1))
+      assert(gameState.playerTwoState.goods === GoodBundle(0, 1, 0, 0, 0))
 
       //captain role ended
       assert(roleBoss.stateName === RoleProcess)
@@ -354,7 +349,6 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       assert(ship6.spaceRemaining === 3)
       assert(ship6.good.get === Corn)
     }
-
 
   }
 

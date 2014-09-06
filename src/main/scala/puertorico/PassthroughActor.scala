@@ -1,7 +1,7 @@
 package puertorico
 
-import akka.actor.{Actor,ActorRef}
-import org.slf4j.{Logger,LoggerFactory}
+import akka.actor.{ Actor, ActorRef }
+import org.slf4j.{ Logger, LoggerFactory }
 
 object PassthroughActor {
   case class SetAlice(a: ActorRef)

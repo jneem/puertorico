@@ -1,6 +1,6 @@
 //package puertorico_cli
 
-import java.io.{BufferedReader, PrintStream}
+import java.io.{ BufferedReader, PrintStream }
 import collection.mutable.HashMap
 import puertorico._
 
@@ -10,16 +10,19 @@ package object puertorico_cli {
   //  - some text could be displayed
   //  - we could enter a new MenuState
   //  - we could send a message to the PlayerActor.
-  case class ActionResult(val display: String,
-                          val newState: Option[MenuState],
-                          val message: Option[Object])
-
+  case class ActionResult(
+    val display:  String,
+    val newState: Option[MenuState],
+    val message:  Option[Object]
+  )
 
   // The result is Option[MenuState] because the special
   // value None means that the current state should be repeated.
-  case class MenuChoice(val commandString: String,
-                        val description: String,
-                        val action: () => ActionResult)
+  case class MenuChoice(
+    val commandString: String,
+    val description:   String,
+    val action:        () => ActionResult
+  )
 
   /**
    * A MenuState is a collection of all the currently valid choices.
@@ -33,8 +36,10 @@ package object puertorico_cli {
    * it should immediately present that request to the user; otherwise, it
    * should queue the request.
    */
-  class MenuState(private val initChoices: List[MenuChoice],
-                  val idle: Boolean = true) {
+  class MenuState(
+      private val initChoices: List[MenuChoice],
+      val idle:                Boolean          = true
+  ) {
     private lazy val choices = initChoices :+ helpChoice
 
     // TODO: warn if initChoices contains a binding for '?',
@@ -104,7 +109,6 @@ package object puertorico_cli {
     Craftsman -> ("Craftsman", "c")
   )
 
-
   def showBuildingState(bs: BuildingState): String = {
     val intro = s"Building space used: ${bs.spaceUsed}/${bs.size}."
 
@@ -137,18 +141,26 @@ package object puertorico_cli {
 
   def defaultMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
     val choices = List(
-      MenuChoice("pb",
-                 "Print my buildings.",
-                 () => ActionResult(showBuildingState(me.buildings), None, None)),
-      MenuChoice("pi",
-                 "Print my island.",
-                 () => ActionResult(showIslandState(me.island), None, None)),
-      MenuChoice("pob",
-                 "Print the other player's buildings.",
-                 () => ActionResult(showBuildingState(other.buildings), None, None)),
-      MenuChoice("poi",
-                 "Print the other player's island.",
-                 () => ActionResult(showIslandState(other.island), None, None))
+      MenuChoice(
+        "pb",
+        "Print my buildings.",
+        () => ActionResult(showBuildingState(me.buildings), None, None)
+      ),
+      MenuChoice(
+        "pi",
+        "Print my island.",
+        () => ActionResult(showIslandState(me.island), None, None)
+      ),
+      MenuChoice(
+        "pob",
+        "Print the other player's buildings.",
+        () => ActionResult(showBuildingState(other.buildings), None, None)
+      ),
+      MenuChoice(
+        "poi",
+        "Print the other player's island.",
+        () => ActionResult(showIslandState(other.island), None, None)
+      )
     )
 
     new MenuState(choices)
@@ -158,17 +170,23 @@ package object puertorico_cli {
     def roleChoice(r: Role) = {
       val (name, cmd) = roleNames(r)
       val nextState = defaultMenu(gs, me, other)
-      MenuChoice(cmd,
-                 s"Choose the ${name} role.",
-                 () => ActionResult(s"You chose ${name}.",
-                                    Some(nextState),
-                                    Some(r)))
+      MenuChoice(
+        cmd,
+        s"Choose the ${name} role.",
+        () => ActionResult(
+          s"You chose ${name}.",
+          Some(nextState),
+          Some(r)
+        )
+      )
     }
 
     val choices = List(
-      MenuChoice("li",
-                 "List the available roles.",
-                 () => ActionResult(showAvailableRoles(gs), None, None))
+      MenuChoice(
+        "li",
+        "List the available roles.",
+        () => ActionResult(showAvailableRoles(gs), None, None)
+      )
     )
     val roleChoices = gs.rolesDoubloons.keys.toList map roleChoice
 
@@ -176,9 +194,10 @@ package object puertorico_cli {
   }
 
   def showAvailableRoles(gs: GameState): String = {
-    val roles = gs.rolesDoubloons map { case (role, money) =>
-      val (name, cmd) = roleNames(role)
-      s"\t${cmd} (${money})\t${name}"
+    val roles = gs.rolesDoubloons map {
+      case (role, money) =>
+        val (name, cmd) = roleNames(role)
+        s"\t${cmd} (${money})\t${name}"
     }
 
     "Available roles:\n" + roles.mkString("\n")

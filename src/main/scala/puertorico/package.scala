@@ -10,12 +10,13 @@ package object puertorico {
   case object Coffee extends Good
 
   case class GoodBundle(
-    var corn: Int,
-    var indigo: Int,
-    var sugar: Int,
-    var tobacco: Int,
-    var coffee: Int) {
-    
+      var corn:    Int,
+      var indigo:  Int,
+      var sugar:   Int,
+      var tobacco: Int,
+      var coffee:  Int
+  ) {
+
     def apply(good: Good): Int = good match {
       case Corn => corn
       case Indigo => indigo
@@ -38,7 +39,7 @@ package object puertorico {
   }
 
   object GoodBundle {
-    def empty = GoodBundle(0,0,0,0,0)
+    def empty = GoodBundle(0, 0, 0, 0, 0)
   }
 
   // Data structures related to trading house
@@ -60,14 +61,14 @@ package object puertorico {
   case object CoffeePlantation extends Plantation
   case object Quarry extends Plantation
 
-
   case class PlantationBundle(
-    var quarry: Int, 
-    var corn: Int,
-    var indigo: Int,
-    var sugar: Int,
-    var tobacco: Int,
-    var coffee: Int) {
+      var quarry:  Int,
+      var corn:    Int,
+      var indigo:  Int,
+      var sugar:   Int,
+      var tobacco: Int,
+      var coffee:  Int
+  ) {
 
     def apply(plant: Plantation): Int = plant match {
       case CornPlantation => corn
@@ -92,7 +93,7 @@ package object puertorico {
   }
 
   object PlantationBundle {
-    def empty = PlantationBundle(0,0,0,0,0,0)
+    def empty = PlantationBundle(0, 0, 0, 0, 0, 0)
   }
 
   // Data structures related to buildings.
@@ -119,7 +120,7 @@ package object puertorico {
     def good: Good
   }
 
-  trait PurpleBuilding extends Building 
+  trait PurpleBuilding extends Building
 
   case object SmallIndigo extends ProductionBuilding {
     val cost = 1
@@ -230,7 +231,7 @@ package object puertorico {
     val description = "Private ship"
   }
 
-  case object Harbor extends PurpleBuilding{
+  case object Harbor extends PurpleBuilding {
     val cost = 8
     val victoryPoints = 3
     val description = "Gives one extra victory points per load"
@@ -286,8 +287,8 @@ package object puertorico {
     }
 
     def clear: Unit = {
-        _good = None
-        _spaceUsed = 0
+      _good = None
+      _spaceUsed = 0
     }
 
     def load(loadGood: Good, quantity: Int): Unit = {
