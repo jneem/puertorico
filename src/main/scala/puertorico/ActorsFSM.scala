@@ -4,6 +4,7 @@ import akka.actor.{Actor, ActorRef, FSM}
 import scala.collection.immutable.{HashMap => ImHashMap}
 
 sealed trait State
+case object WaitForStart extends State
 case object RoleProcess extends State
 case object CraftsmanProcess extends State
 case object SettlerProcessHacienda extends State
@@ -22,6 +23,7 @@ case class DoOnceUntilSuccess(playerSet: Set[ActorRef]) extends Data
 case class DoUntilSuccess(playerList: List[ActorRef]) extends Data
 
 case object GameStateQuery
+case object StartGame
 
 
 /**
@@ -176,7 +178,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     }
   }
 
-  startWith(RoleProcess, DoOnce(playerOne))
+  startWith(WaitForStart, DoOnce(playerOne))
+
+  when(WaitForStart) {
+    case Event(StartGame, d @ DoOnce(p)) => {
+      p ! ChooseRole
+      goto(RoleProcess) using d
+    }
+  }
 
   def handoutRole(player: ActorRef, role: Role) = {
     val money = gameState.givePickerRole(role)
@@ -188,14 +197,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
   }
 
   when(RoleProcess){
-    case Event(Prospector, DoOnce(player)) => {
+    case Event(RoleChosen(Prospector), DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Prospector)) {
         handoutRole(player, Prospector)
         stay using DoOnce(getNextRolePicker)
       } else stay
     }
 
-    case Event(Craftsman, p @ DoOnce(player)) => {
+    case Event(RoleChosen(Craftsman), p @ DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Craftsman)) {
         handoutRole(player, Craftsman)
         val gbpair = gameState.craft
@@ -206,14 +215,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       } else stay
     }
 
-    case Event(Settler, DoOnce(player)) => {
+    case Event(RoleChosen(Settler), DoOnce(player)) => {
       if (sender == player && gameState.isRoleAvailable(Settler)) {
         handoutRole(player, Settler)
         handleHacienda(playersOrder)
       } else stay
     }
 
-    case Event(Trader, DoOnce(player)) => {
+    case Event(RoleChosen(Trader), DoOnce(player)) => {
       if (sender == player) {
         handoutRole(player, Trader)
         handleTrader(playersOrder)
@@ -221,14 +230,14 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
     }
 
 
-    case Event(Builder, DoOnce(player)) => {
+    case Event(RoleChosen(Builder), DoOnce(player)) => {
       if (sender == player){
         handoutRole(player, Builder)
         handleBuilder(playersOrder)
       } else stay
     }
 
-    case Event(Mayor, DoOnce(player)) => {
+    case Event(RoleChosen(Mayor), DoOnce(player)) => {
       if(sender.equals(player)) {
         handoutRole(player, Mayor)
         tellAll(player, SelectColonist)
@@ -439,9 +448,11 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       sender ! gameState
       stay
     }
+    /*
     case Event(e, s) => 
-      log.warning("received unhandled request ${e}, data ${s}")
+      log.warning(s"received unhandled request ${e}, data ${s}")
       stay
+      */
   }
   initialize()
   

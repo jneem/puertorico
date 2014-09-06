@@ -242,7 +242,7 @@ package object puertorico {
     val description = "4 points per purple building"
   }
 
-  case object CustomHouse extends PurpleBuilding {
+  case object CustomsHouse extends PurpleBuilding {
     val cost = 10
     val victoryPoints = 4
     val description = "4 points per victory points"

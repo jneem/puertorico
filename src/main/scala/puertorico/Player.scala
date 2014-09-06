@@ -2,8 +2,6 @@ package puertorico
 import akka.actor._
 import akka.event.LoggingReceive
 
-case object StartGame
-
 class Player extends Actor {
   def receive = LoggingReceive {
     case ChooseRole => {
