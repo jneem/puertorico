@@ -11,7 +11,15 @@ class GameStateTest extends FlatSpec {
   val gameState = new GameState
   val p1 = gameState.playerOneState
   val p2 = gameState.playerTwoState
-  
+
+  it should "give roles correctly" in {
+    val gameState2 = new GameState
+    gameState2.rolesDoubloons(Craftsman) = 2
+    gameState2.givePickerRole(Craftsman)
+    assert(gameState2.isRoleAvailable(Craftsman) === false)
+    assert(gameState2.playerOneState.doubloons === 2)
+  }
+
   it should "craft correctly" in {
     p1.addBuilding(BigSugar)
     p1.addBuilding(SmallSugar)
@@ -78,6 +86,8 @@ class GameStateTest extends FlatSpec {
     assert(gameState.rolePicker === p2)
     assert(gameState.orderPlayers.head === p2)
     assert(gameState.orderPlayers.tail.head === p1)
+
+    gameState.resetRoles
     //temporary buildings are cleared
     assert(p1.recentlyAddedBuilding === EmptyBuilding)
     assert(p1.recentlyAddedPlantations.isEmpty === true)

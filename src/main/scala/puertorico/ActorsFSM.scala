@@ -81,7 +81,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
         playerState.canGetPlantationExtra) {
         tellAll(pls.head, SelectPlantationExtra)
         goto(SettlerProcessHacienda) using DoOnceEach(pls)
-      } else handleNoHacienda(pls.tail)
+      } else handleNoHacienda(pls)
     }
   }
 
@@ -182,7 +182,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
 
   when(WaitForStart) {
     case Event(StartGame, d @ DoOnce(p)) => {
-      p ! ChooseRole
+      tellAll(p, ChooseRole)
       goto(RoleProcess) using d
     }
   }
@@ -403,7 +403,7 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
       val player = playerList.head
       val playerState = playerToState(player)
       if (sender == player && gameState.canGetPlantation(plant, playerState)) {
-        playerState.addPlantation(plant)
+        gameState.givePlantationToPlayer(plant, playerState)
         tellAll(player, GotPlantation(plant))
         handleHospice(playerList)
       } else stay

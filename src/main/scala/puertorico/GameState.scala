@@ -33,7 +33,7 @@ class GameState {
   def otherShip(ship: Ship) = ships.filter(_ != ship).head
 
   val tradingHouse = new TradingHouse
-  val plantationsVisible = new PlantationBundle(1,1,1,1,1,1)
+  val plantationsVisible = new PlantationBundle(5,1,1,1,1,1)
   val plantationsDiscarded = PlantationBundle.empty
   val plantationsMax = new PlantationBundle(5,24,24,24,24,24)
   val goodsRemain = new GoodBundle(7,7,7,7,7)
@@ -96,7 +96,7 @@ class GameState {
   def nextPlayerPickRoles = {
     rolePicker = orderPlayers(1)
     //start new round if needed
-    val rolesRemain = rolesDoubloons.count(_._2 == -1)
+    val rolesRemain = rolesDoubloons.count(_._2 != -1)
     if (rolesRemain < 3){
       resetRoles
       governor = rolePicker
@@ -169,6 +169,10 @@ class GameState {
 
   def canAccomodatePlantation(playerState: PlayerState) = playerState.island.spaceRemaining > 0
 
+  /*
+   * generate a random plantation, weighted by the number discarded
+   * TODO: do the weighting properly
+   */
   def getRandomPlantation = {
     val int = Random.nextInt(5)
     int match {
@@ -177,6 +181,16 @@ class GameState {
       case 2 => SugarPlantation
       case 3 => TobaccoPlantation
       case 4 => CoffeePlantation
+    }
+  }
+
+  def givePlantationToPlayer(plant: Plantation, pl: PlayerState) = {
+    pl.addPlantation(plant)
+    plantationsDiscarded(plant) += 1
+    if (plant == Quarry) {
+      plantationsVisible(Quarry) = 0 max (plantationsVisible(Quarry) - 1)
+    } else {
+      plantationsVisible(plant) -= 1
     }
   }
 
