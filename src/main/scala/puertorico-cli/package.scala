@@ -109,6 +109,14 @@ package object puertorico_cli {
     Craftsman -> ("Craftsman", "c")
   )
 
+  val goodNames = Map[Good, (String, String)](
+    Corn -> ("Corn", "c"),
+    Indigo -> ("Indigo", "i"),
+    Sugar -> ("Sugar", "s"),
+    Tobacco -> ("Tobacco", "t"),
+    Coffee -> ("Coffee", "cf")
+  )
+
   def showBuildingState(bs: BuildingState): String = {
     val intro = s"Building space used: ${bs.spaceUsed}/${bs.size}."
 
@@ -173,11 +181,7 @@ package object puertorico_cli {
       MenuChoice(
         cmd,
         s"Choose the ${name} role.",
-        () => ActionResult(
-          s"You chose ${name}.",
-          Some(nextState),
-          Some(r)
-        )
+        () => ActionResult(s"You chose ${name}.", Some(nextState), Some(r))
       )
     }
 
@@ -201,6 +205,50 @@ package object puertorico_cli {
     }
 
     "Available roles:\n" + roles.mkString("\n")
+  }
+
+  /**
+   * Returns a MenuState allowing the player to select between any non-zero goods in the bundle.
+   */
+  def chooseGoodMenu(gb: GoodBundle, nextState: Good => MenuState): MenuState = {
+    def goodChoice(g: Good) = {
+      val (name, cmd) = goodNames(g)
+      val next = nextState(g)
+      MenuChoice(
+        cmd,
+        s"Select ${name}.",
+        () => ActionResult(s"You chose ${name}.", Some(next), Some(g))
+      )
+    }
+
+    val choices = gb map (x => goodChoice(x._1))
+    new MenuState(choices.toList, false)
+  }
+
+  // TODO: we can be more helpful by only listing possibilities that are actually valid.
+  // Otherwise, they might get stuck in the next menu.
+  def chooseGoodToLoadMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    val nextState = (g: Good) => chooseShipToLoadMenu(gs, me, other, g)
+
+    chooseGoodMenu(me.goods, nextState)
+  }
+
+  def chooseShipToLoadMenu(gs: GameState, me: PlayerState, other: PlayerState, good: Good): MenuState = {
+    def shipChoice(s: Ship) = {
+      val (name, cmd) = s.size match {
+        case 4 => ("4", "Ship of 4.")
+        case 6 => ("6", "Ship of 6.")
+        case 100 => ("w", "Wharf")
+      }
+      val next = defaultMenu(gs, me, other)
+
+      MenuChoice(cmd, name, () => ActionResult(s"You chose the ${name}.", Some(next), Some(s)))
+    }
+
+    val ships = gs.wharf +: gs.ships
+    val validShips = ships filter (gs.canShipGoods(good, _, me))
+    val choices = validShips map shipChoice
+    new MenuState(choices, false)
   }
 }
 

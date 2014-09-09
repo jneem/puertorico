@@ -15,7 +15,13 @@ package object puertorico {
       var sugar:   Int,
       var tobacco: Int,
       var coffee:  Int
-  ) {
+  ) extends Iterable[(Good, Int)] {
+
+    // TODO: This isn't particularly efficient...
+    override def iterator = {
+      val xs = List(Corn -> corn, Indigo -> indigo, Sugar -> sugar, Tobacco -> tobacco, Coffee -> coffee)
+      (xs filter (_._2 > 0)).iterator
+    }
 
     def apply(good: Good): Int = good match {
       case Corn => corn
@@ -35,7 +41,7 @@ package object puertorico {
 
     def sum: Int = corn + indigo + sugar + tobacco + coffee
 
-    def isEmpty: Boolean = sum == 0
+    override def isEmpty: Boolean = sum == 0
   }
 
   object GoodBundle {
