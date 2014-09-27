@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 
 import akka.testkit.{ TestProbe, TestKit }
 import akka.actor._

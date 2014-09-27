@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 import akka.actor._
 import scala.collection.immutable.HashMap
 

@@ -1,4 +1,5 @@
-package puertorico
+package org.puertorico
+
 import scala.collection.mutable.HashMap
 import scala.collection.immutable.{ HashMap => ImHashMap }
 import scala.collection.mutable.MutableList

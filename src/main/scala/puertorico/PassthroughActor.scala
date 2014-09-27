@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 
 import akka.actor.{ Actor, ActorRef }
 import org.slf4j.{ Logger, LoggerFactory }

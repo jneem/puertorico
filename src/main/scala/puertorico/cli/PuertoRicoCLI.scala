@@ -1,4 +1,4 @@
-package puertorico_cli
+package org.puertorico.cli
 
 import akka.actor.{ ActorSystem, Props }
 

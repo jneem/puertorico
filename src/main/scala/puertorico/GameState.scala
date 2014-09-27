@@ -1,5 +1,5 @@
+package org.puertorico
 
-package puertorico
 import scala.collection.mutable.HashMap
 import scala.collection.immutable.{ HashMap => ImHashMap }
 import scala.util.Random
@@ -10,6 +10,9 @@ class GameState {
 
   val playerOneState = new PlayerState
   val playerTwoState = new PlayerState
+
+  def playerState(id: Int) = if (id == 0) playerOneState else playerTwoState
+
   var governor = playerOneState
   var rolePicker = playerOneState
 

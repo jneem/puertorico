@@ -1,8 +1,8 @@
-package puertorico_cli
+package org.puertorico.cli
 
 import akka.actor.{ Actor, ActorSystem, Props, ActorRef }
 import java.io.PrintStream
-import puertorico._
+import org.puertorico._
 
 class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Actor {
   override def preStart() = {
@@ -21,7 +21,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   // The game boss sends lots of messages that
   // require responses. Here, we queue up the ones
   // that we haven't responded to yet.
-  var requestQueue = List[Any]()
+  var requestQueue = List[(Any, ActorRef)]()
 
   private def nameAndState(player: ActorRef) = {
     if (player == p1Proxy)
@@ -32,22 +32,30 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
 
   private def nameAndStates(player: ActorRef) = {
     if (player == p1Proxy)
-      (p1Name, gameState.playerOneState, gameState.playerTwoState)
+      (p1Name, 0, gameState.playerOneState, gameState.playerTwoState)
     else
-      (p2Name, gameState.playerTwoState, gameState.playerOneState)
+      (p2Name, 1, gameState.playerTwoState, gameState.playerOneState)
   }
 
   /**
-   * If there is a request in our queue, pop it
-   * and change state accordingly, asking the user for
-   * the relevant information.
+   * While there are requests in our queue, keep acting on them
+   * and removing them until we get to one that requires input
+   * from the user.
    */
-  def popRequest() = {
-    if (requestQueue.nonEmpty) {
-      val req = requestQueue.head
+  def handleQueuedRequests() = {
+    var done = false
+
+    while (!done && requestQueue.nonEmpty) {
+      val (req, sender) = requestQueue.head
       requestQueue = requestQueue.tail
-      handleRequest(req)
+      out.println(s"Acting on queued request ${req}")
+      done = handleRequest(req, sender)
     }
+
+    // If no request requires a reponse,
+    // we just wait for more messages.
+    if (!done)
+      context.become(waitForMessage)
   }
 
   def showPrompt() = {
@@ -55,23 +63,33 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   }
 
   /**
-   * Every case in here should finish by calling
-   * context.become on a non-idle state.
+   * Deals with a request from the game manager.
+   *
+   * Some of the requests from the game manager require user input,
+   * followed by a response. Other requests require no input. For
+   * responses that require an input, return true. Otherwise, return false.
    */
-  def handleRequest(req: Any) = req match {
-    case ChooseRole => {
-      val (name, myState, otherState) = nameAndStates(sender)
-      val state = chooseRolesMenu(gameState, myState, otherState)
+  def handleRequest(req: Any, sender: ActorRef): Boolean = req match {
+    case (playerId, ChooseRole) => {
+      val (name, id, myState, otherState) = nameAndStates(sender)
 
-      out.println(s"$name, please choose a role.")
-      context.become(runGame(state))
+      // If it's time for player 1 to choose a role, the game will send
+      // (0, ChooseRole) to both players. Therefore, we only take action
+      // for one of those.
+      if (id == playerId) {
+        val state = chooseRolesMenu(gameState, myState, otherState)
+
+        out.println(s"$name, please choose a role.")
+        promptForInput(state)
+        true
+      } else {
+        false
+      }
     }
 
     case _ => {
       out.println(s"Sorry, I don't know how to handle $req yet...")
-      val (name, myState, otherState) = nameAndStates(sender)
-      val state = defaultMenu(gameState, myState, otherState)
-      context.become(runGame(state))
+      false
     }
   }
 
@@ -101,9 +119,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
       out.println(s"Welcome, $p2Name!")
       out.println("Starting game...")
       out.println("")
-      out.println(s"Your move, $p1Name.")
       out.println("For help, press ? at any time.")
-      showPrompt()
 
       // Start the game!
       val menu = defaultMenu(gameState, gameState.playerOneState, gameState.playerTwoState)
@@ -117,13 +133,29 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
 
       boss ! StartGame
 
-      context.become(runGame(menu))
+      context.become(waitForMessage)
     }
 
     case StdinMonitor.EOF => onEOF()
   }
 
-  def runGame(state: MenuState): Receive = {
+  def waitForMessage: Receive = {
+    case StdinMonitor.EOF => onEOF()
+
+    case StdinMonitor.Input(_) => out.println(s"Waiting to hear from the game manager...")
+
+    case x => {
+      out.println(s"Handling message ${x} from ${sender}")
+      handleRequest(x, sender)
+    }
+  }
+
+  def promptForInput(state: MenuState) = {
+    context.become(waitForUser(state))
+    showPrompt()
+  }
+
+  def waitForUser(state: MenuState): Receive = {
     case StdinMonitor.Input(input) => {
       if (state.hasAction(input)) {
         val result = state.takeAction(input)
@@ -137,37 +169,23 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
           p1Proxy ! result.message.get
         }
 
-        if (result.newState != None) {
-          val newState = result.newState.get
-
-          // If we're asked to switch to an idle state but there's
-          // work pending, figure out the next state according
-          // to the work to do instead.
-          if (newState.idle && requestQueue.nonEmpty) {
-            popRequest()
-          } else {
-            context.become(runGame(newState))
-          }
+        result.newState match {
+          case SameState => promptForInput(state)
+          case IdleState => handleQueuedRequests()
+          case NewState(s) => promptForInput(s)
         }
       } else {
         out.println("I didn't understand that...")
         out.println("For help, press ? at any time.")
+        showPrompt()
       }
-
-      showPrompt()
     }
 
     case StdinMonitor.EOF => onEOF()
 
     case x => {
-      if (state.idle) {
-        out.println("")
-        handleRequest(x)
-        showPrompt()
-      } else {
-        out.println("Got a message, but I'm busy...")
-        requestQueue = requestQueue :+ x
-      }
+      out.println(s"Queueing message ${x} from ${sender}")
+      requestQueue = requestQueue :+ (x, sender)
     }
   }
 }

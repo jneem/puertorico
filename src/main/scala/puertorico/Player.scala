@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 import akka.actor._
 import akka.event.LoggingReceive
 

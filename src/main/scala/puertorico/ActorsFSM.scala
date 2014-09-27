@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 
 import akka.actor.{ Actor, ActorRef, FSM }
 import scala.collection.immutable.{ HashMap => ImHashMap }

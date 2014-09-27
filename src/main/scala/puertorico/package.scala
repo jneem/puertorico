@@ -1,3 +1,5 @@
+package org
+
 package object puertorico {
 
   // Data structures related to goods.

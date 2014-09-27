@@ -1,4 +1,4 @@
-package puertorico
+package org.puertorico
 
 import org.scalatest.FlatSpec
 import org.scalatest.junit.JUnitRunner
