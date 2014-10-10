@@ -83,11 +83,15 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       //role boss stays at current state
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
+      probe1.expectMsg((1, ChooseRole))
 
       //p2 selects trader, neither has anything to trade
       roleBoss.receive(Trader, probe2.ref)
       assert(roleBoss.stateName == RoleProcess)
       assert(roleBoss.stateData == DoOnce(probe1.ref))
+      probe1.expectMsg((1, GotRole(Trader)))
+      probe1.expectMsg((1, GotDoubloons(0)))
+      probe1.expectMsg((0, ChooseRole))
 
     }
 
