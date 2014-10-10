@@ -68,6 +68,9 @@ class GameState {
   val rolesDoubloons: HashMap[Role, Int] = new HashMap[Role, Int]
   rolesDoubloons ++= rolesAll map (_ -> 0)
 
+  def availableRolesDoubloons =
+    rolesDoubloons filter { _._2 > -1 }
+
   //Logic functions (Rule check)
   def isEndGame: Boolean = {
     colonistsLeft == 0 ||
@@ -84,13 +87,24 @@ class GameState {
 
   def isRoleAvailable(role: Role): Boolean = rolesDoubloons(role) > -1
 
-  //Returns the number of doubloons on the role
+  /**
+   * Marks a role as unavailable, gives doubloons to the role picker,
+   * and returns the number of doubloons given.
+   */
   def givePickerRole(role: Role): Int = {
     val money = rolesDoubloons(role)
     rolePicker.doubloons += rolesDoubloons(role)
-    rolesDoubloons(role) = -1
+    removeRole(role)
     money
   }
+
+  /**
+   * Marks a role as unavailable.
+   */
+  def removeRole(role: Role) = {
+    rolesDoubloons(role) = -1
+  }
+
   def resetRoles = {
     for (role <- rolesDoubloons.keys) rolesDoubloons(role) += 1
     //tell players to reset temporary parameters

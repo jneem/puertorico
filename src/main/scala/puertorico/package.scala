@@ -76,7 +76,7 @@ package object puertorico {
       var sugar:   Int,
       var tobacco: Int,
       var coffee:  Int
-  ) {
+  ) extends Iterable[(Plantation, Int)] {
 
     def apply(plant: Plantation): Int = plant match {
       case CornPlantation => corn
@@ -85,6 +85,19 @@ package object puertorico {
       case TobaccoPlantation => tobacco
       case CoffeePlantation => coffee
       case Quarry => quarry
+    }
+
+    // TODO: This isn't particularly efficient...
+    override def iterator = {
+      val xs = List(
+        Quarry -> quarry,
+        CornPlantation -> corn,
+        IndigoPlantation -> indigo,
+        SugarPlantation -> sugar,
+        TobaccoPlantation -> tobacco,
+        CoffeePlantation -> coffee
+      )
+      (xs filter (_._2 > 0)).iterator
     }
 
     def update(plant: Plantation, count: Int) = plant match {

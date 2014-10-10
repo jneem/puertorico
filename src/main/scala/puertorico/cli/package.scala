@@ -115,6 +115,15 @@ package object cli {
     Coffee -> ("Coffee", "cf")
   )
 
+  val plantationNames = Map[Plantation, (String, String)](
+    Quarry -> ("Quarry", "q"),
+    CornPlantation -> ("Corn", "c"),
+    IndigoPlantation -> ("Indigo", "i"),
+    SugarPlantation -> ("Sugar", "s"),
+    TobaccoPlantation -> ("Tobacco", "t"),
+    CoffeePlantation -> ("Coffee", "cf")
+  )
+
   def showBuildingState(bs: BuildingState): String = {
     val intro = s"Building space used: ${bs.spaceUsed}/${bs.size}."
 
@@ -140,13 +149,30 @@ package object cli {
       s"\tcorn:\t${cs.corn}/${ps.corn}\n" +
       s"\tindigo:\t${cs.indigo}/${ps.indigo}\n" +
       s"\tsugar:\t${cs.sugar}/${ps.sugar}\n" +
-      s"\ttobacco:\t${cs.tobacco}/${ps.tobacco}\n" +
+      s"\ttobac.:\t${cs.tobacco}/${ps.tobacco}\n" +
       s"\tcoffee:\t${cs.coffee}/${ps.coffee}\n" +
       s"\tquarry:\t${cs.quarry}/${ps.quarry}\n"
   }
 
+  def showPlantationBundle(pb: PlantationBundle) = {
+    val lines = pb map {
+      case (p, count) =>
+        s"\t${count} ${plantationNames(p)._1.toLowerCase}"
+    }
+    lines mkString "\n"
+  }
+
+  def showPlantations(gs: GameState): String = {
+    "Available plantations:\n" + showPlantationBundle(gs.plantationsVisible)
+  }
+
   def defaultMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
     val choices = List(
+      MenuChoice(
+        "pp",
+        "Print available plantations.",
+        () => ActionResult(showPlantations(gs), SameState, None)
+      ),
       MenuChoice(
         "pb",
         "Print my buildings.",
@@ -189,13 +215,38 @@ package object cli {
         () => ActionResult(showAvailableRoles(gs), SameState, None)
       )
     )
-    val roleChoices = gs.rolesDoubloons.keys.toList map roleChoice
+    val roleChoices = gs.availableRolesDoubloons.keys.toList map roleChoice
 
     new MenuState(choices ++ roleChoices) + defaultMenu(gs, me, other)
   }
 
+  def chooseExtraPlantationMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    val yes = MenuChoice(
+      "y",
+      "Yes, take a plantation from the deck.",
+      () => ActionResult("", IdleState, Some(PlantationExtraAgreed))
+    )
+    val no = MenuChoice(
+      "n",
+      "No, thanks.",
+      () => ActionResult("", IdleState, Some(NoneSelected))
+    )
+
+    new MenuState(List(yes, no)) + defaultMenu(gs, me, other)
+  }
+
+  def choosePlantationMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    // FIXME
+    defaultMenu(gs, me, other)
+  }
+
+  def chooseHospiceSettlerMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    // FIXME
+    defaultMenu(gs, me, other)
+  }
+
   def showAvailableRoles(gs: GameState): String = {
-    val roles = gs.rolesDoubloons map {
+    val roles = gs.availableRolesDoubloons map {
       case (role, money) =>
         val (name, cmd) = roleNames(role)
         s"\t${cmd} (${money})\t${name}"

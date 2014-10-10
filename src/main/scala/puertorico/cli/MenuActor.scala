@@ -16,6 +16,12 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   var p2Name: String = ""
   var p1Proxy: ActorRef = null
   var p2Proxy: ActorRef = null
+
+  // If we are currently gathering information for a player in order to
+  // send a response back to the game manager, keep track of the player
+  // on whose behalf we are gathering information.
+  var activePlayer: ActorRef = null
+
   val gameState = new GameState
 
   // The game boss sends lots of messages that
@@ -62,6 +68,15 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     print("> ")
   }
 
+  def senderId = if (sender == p1Proxy) 0 else 1
+  def senderName = if (sender == p1Proxy) p1Name else p2Name
+  def senderState =
+    if (sender == p1Proxy) gameState.playerOneState
+    else gameState.playerTwoState
+  def nonSenderState =
+    if (sender == p1Proxy) gameState.playerTwoState
+    else gameState.playerOneState
+
   /**
    * Deals with a request from the game manager.
    *
@@ -80,11 +95,47 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
         val state = chooseRolesMenu(gameState, myState, otherState)
 
         out.println(s"$name, please choose a role.")
-        promptForInput(state)
+        promptForInput(state, sender)
         true
       } else {
         false
       }
+    }
+
+    case (playerId, GotDoubloons(d)) => {
+      if (playerId == senderId) {
+        senderState.doubloons += d
+      }
+      false
+    }
+
+    case (playerId, GotRole(role)) => {
+      if (playerId == senderId) {
+        gameState.removeRole(role)
+      }
+      false
+    }
+
+    // The settler process
+    case (playerId, SelectPlantationExtra) => {
+      if (playerId == senderId) {
+        out.println(s"${senderName}, would you like a plantation from the deck?")
+
+        val state = chooseExtraPlantationMenu(gameState, senderState, nonSenderState)
+        promptForInput(state, sender)
+      }
+      false
+    }
+
+    case (playerId, SelectPlantation) => {
+      if (playerId == senderId) {
+        out.println(s"${senderName}, please choose a plantation.")
+        out.println(showPlantations(gameState))
+
+        val state = choosePlantationMenu(gameState, senderState, nonSenderState)
+        promptForInput(state, sender)
+      }
+      false
     }
 
     case _ => {
@@ -150,7 +201,8 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     }
   }
 
-  def promptForInput(state: MenuState) = {
+  def promptForInput(state: MenuState, active: ActorRef) = {
+    activePlayer = active
     context.become(waitForUser(state))
     showPrompt()
   }
@@ -165,14 +217,13 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
         if (result.message != None) {
           out.println(s"sending message ${result.message.get} to game...")
 
-          // TODO: should really send it through either p1Proxy or p2Proxy
-          p1Proxy ! result.message.get
+          activePlayer ! result.message.get
         }
 
         result.newState match {
-          case SameState => promptForInput(state)
+          case SameState => promptForInput(state, activePlayer)
           case IdleState => handleQueuedRequests()
-          case NewState(s) => promptForInput(s)
+          case NewState(s) => promptForInput(s, activePlayer)
         }
       } else {
         out.println("I didn't understand that...")
