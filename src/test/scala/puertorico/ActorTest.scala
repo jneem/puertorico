@@ -41,6 +41,13 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
     (probe1, probe2, roleBoss, gameState)
 
   }
+  
+  /*To manually shut down probes*/
+  def endGame(probeList: List[TestProbe]) = {
+    for {probe <- probeList} {
+      probe.shutdown(probe.system)
+    }
+  }
   "a single role boss" must {
 
     "start correctly" in {
@@ -64,7 +71,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     }
 
-    "prospect correctly" in {
+    "prospect and trade correctly in first round" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
 
       roleBoss.receive(Prospector, probe1.ref)
@@ -84,7 +91,13 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
 
+      //p2 selects trader, neither has anything to trade
+      roleBoss.receive(Trader, probe2.ref)
+      assert(roleBoss.stateName == RoleProcess)
+      assert(roleBoss.stateData == DoOnce(probe1.ref))
+
     }
+
 
     "settle without hacienda correctly" in {
       val (probe1, probe2, roleBoss, gameState) = startGame
