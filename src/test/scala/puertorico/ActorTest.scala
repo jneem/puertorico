@@ -42,14 +42,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
   }
   
-  /*To manually shut down probes*/
-  def endGame(probeList: List[TestProbe]) = {
-    for {probe <- probeList} {
-      probe.shutdown(probe.system)
-    }
-  }
   "a single role boss" must {
-
     "start correctly" in {
 
       val probe1 = TestProbe()
@@ -129,7 +122,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p2 tries to pick an illegal plantation
       roleBoss.receive(PlantationSelected(Quarry), probe2.ref)
-      probe1.expectNoMsg()
+      probe1.expectNoMsg(1.millisecond)
       assert(gameState.playerTwoState.island.plantations(Quarry) == 0)
       assert(roleBoss.stateName === SettlerProcess)
 
@@ -170,7 +163,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p2 tries to pick illegal building
       roleBoss.receive(BuildingSelected(University), probe2.ref)
-      probe1.expectNoMsg()
+      probe1.expectNoMsg(1.millisecond)
       assert(gameState.playerTwoState.hasBuilding(University) === false)
 
       //p2 picks a valid building
@@ -198,7 +191,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p1 tries to select a good that they don't have
       roleBoss.receive(GoodSelected(Indigo), probe1.ref)
-      probe1.expectNoMsg()
+      probe1.expectNoMsg(1.millisecond)
       assert(gameState.tradingHouse.contains(Indigo) === false)
 
       //p1 trades in a coffee
@@ -209,14 +202,13 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p2 tries to select coffee again
       roleBoss.receive(GoodSelected(Coffee), probe2.ref)
-      probe1.expectNoMsg()
+      probe1.expectNoMsg(1.millisecond)
 
       //p2 select nothing to trade
       roleBoss.receive(NoneSelected, probe2.ref)
       assert(gameState.playerTwoState.goods === GoodBundle(0, 2, 0, 0, 2))
       assert(roleBoss.stateName === RoleProcess)
       assert(roleBoss.stateData === DoOnce(probe2.ref))
-
     }
 
     "doMayor and craft correctly" in {
@@ -242,7 +234,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
       //p2 tries to select a colonist
       roleBoss.receive(ColonistSelected, probe2.ref)
-      probe1.expectNoMsg()
+      probe1.expectNoMsg(1.millisecond)
 
       //p1 accepts
       roleBoss.receive(ColonistSelected, probe1.ref)
