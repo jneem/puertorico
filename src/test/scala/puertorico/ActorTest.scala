@@ -41,7 +41,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
     (probe1, probe2, roleBoss, gameState)
 
   }
-  
+
   "a single role boss" must {
     "start correctly" in {
 
@@ -95,8 +95,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     }
 
-
-    "settle without hacienda correctly" in {
+    "settle without hacienda correctly" ignore {
       val (probe1, probe2, roleBoss, gameState) = startGame
 
       //initialize game data
@@ -139,7 +138,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     }
 
-    "build correctly" in {
+    "build correctly" ignore {
       val (probe1, probe2, roleBoss, gameState) = startGame
       gameState.playerOneState.doubloons = 5
       gameState.playerTwoState.doubloons = 5
@@ -178,7 +177,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     }
 
-    "trade correctly" in {
+    "trade correctly" ignore {
       val (probe1, probe2, roleBoss, gameState) = startGame
       gameState.playerOneState.goods = GoodBundle(1, 0, 0, 0, 1)
       gameState.playerTwoState.goods = GoodBundle(0, 2, 0, 0, 2)
@@ -215,7 +214,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
       assert(roleBoss.stateData === DoOnce(probe2.ref))
     }
 
-    "doMayor and craft correctly" in {
+    "doMayor and craft correctly" ignore {
       //initialize
       val (probe1, probe2, roleBoss, gameState) = startGame
       gameState.playerOneState.doubloons = 10
@@ -292,7 +291,7 @@ class RoleBossTest(_system: ActorSystem) extends TestKit(_system) with WordSpecL
 
     }
 
-    "do captain correctly" in {
+    "do captain correctly" ignore {
       val (probe1, probe2, roleBoss, gameState) = startGame
       gameState.playerOneState.goods = GoodBundle(1, 2, 2, 1, 2)
       gameState.playerTwoState.goods = GoodBundle(2, 1, 0, 0, 3)
