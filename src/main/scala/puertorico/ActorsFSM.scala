@@ -2,6 +2,7 @@ package org.puertorico
 
 import akka.actor.{ Actor, ActorRef, FSM }
 import scala.collection.immutable.{ HashMap => ImHashMap }
+import akka.actor.LoggingFSM
 
 sealed trait State
 case object WaitForStart extends State
@@ -35,8 +36,9 @@ case object StartGame
  * TODO: may write a container version called gameData, to minimize amount of data passed around
  */
 
-class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[State, Data] {
+class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with LoggingFSM[State, Data] {
 
+  override def logDepth = 2
   val gameState = new GameState
 
   //map PlayerState to their actors, and vice versa
@@ -56,6 +58,8 @@ class RoleBoss(playerOne: ActorRef, playerTwo: ActorRef) extends Actor with FSM[
 
   def tellAll(player: ActorRef, message: Any) = {
     for (pl <- allPlayers) pl ! (playerNum(player), message)
+    val pn = playerNum(player)
+    //log.info(s"told all players that $pn got message $message")
   }
 
   def tellEach(message: Any) = {
