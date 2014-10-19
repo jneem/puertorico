@@ -2,9 +2,12 @@ package org.puertorico.cli
 
 import akka.actor.{ Actor, ActorSystem, Props, ActorRef }
 import java.io.PrintStream
+import org.slf4j.{ Logger, LoggerFactory }
 import org.puertorico._
 
 class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Actor {
+  lazy val logger = LoggerFactory.getLogger("MenuActor")
+
   override def preStart() = {
     StdinMonitor.start(in, self)
     out.println("Welcome to the Puerto Rico CLI!")
@@ -68,13 +71,18 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     print("> ")
   }
 
-  def senderId = if (sender == p1Proxy) 0 else 1
-  def senderName = if (sender == p1Proxy) p1Name else p2Name
+  // We sometimes queue up messages, so the sender of the message might
+  // not agree with the sender field at the time we decided to process
+  // the message. This variable will always store the sender of the
+  // message being currently processed.
+  var msgSource: ActorRef = null
+  def senderId = if (msgSource == p1Proxy) 0 else 1
+  def senderName = if (msgSource == p1Proxy) p1Name else p2Name
   def senderState =
-    if (sender == p1Proxy) gameState.playerOneState
+    if (msgSource == p1Proxy) gameState.playerOneState
     else gameState.playerTwoState
   def nonSenderState =
-    if (sender == p1Proxy) gameState.playerTwoState
+    if (msgSource == p1Proxy) gameState.playerTwoState
     else gameState.playerOneState
 
   /**
@@ -85,67 +93,98 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
    * responses that require an input, return true. Otherwise, return false.
    */
   def handleRequest(req: Any, sender: ActorRef): Boolean = req match {
-    case (playerId, ChooseRole) => {
-      val (name, id, myState, otherState) = nameAndStates(sender)
-
-      // If it's time for player 1 to choose a role, the game will send
-      // (0, ChooseRole) to both players. Therefore, we only take action
-      // for one of those.
-      if (id == playerId) {
-        val state = chooseRolesMenu(gameState, myState, otherState)
-
-        out.println(s"$name, please choose a role.")
-        promptForInput(state, sender)
-        true
-      } else {
+    // The game sends two messages for everything that happens (one to
+    // each player). So that we don't repeat every action twice,
+    // only look at a message if it was directed at the player that it's supposed
+    // to affect.
+    case (playerId, msg) => {
+      if (playerId == senderId) {
+        msgSource = sender
+        handleRequestPriv(msg)
+      } else
         false
-      }
+    }
+  }
+
+  private def handleRequestPriv(msg: Any): Boolean = msg match {
+    case ChooseRole => {
+      val state = chooseRolesMenu(gameState, senderState, nonSenderState)
+
+      out.println(s"${senderName}, please choose a role.")
+      promptForInput(state, msgSource)
+      true
     }
 
-    case (playerId, GotDoubloons(d)) => {
-      if (playerId == senderId) {
-        senderState.doubloons += d
-      }
+    // Messages that cause a state update.
+    case GotDoubloons(d) => {
+      senderState.doubloons += d
       false
     }
 
-    case (playerId, GotRole(role)) => {
-      if (playerId == senderId) {
-        gameState.removeRole(role)
-      }
+    case GotRole(role) => {
+      gameState.removeRole(role)
       false
     }
 
-    // The settler process
-    case (playerId, SelectPlantationExtra) => {
-      if (playerId == senderId) {
-        out.println(s"${senderName}, would you like a plantation from the deck?")
-
-        val state = chooseExtraPlantationMenu(gameState, senderState, nonSenderState)
-        promptForInput(state, sender)
-      }
+    case GotColonists(cols) => {
+      senderState.colonistsSpare += 1
       false
     }
 
-    case (playerId, SelectPlantation) => {
-      if (playerId == senderId) {
-        out.println(s"${senderName}, please choose a plantation.")
-        out.println(showPlantations(gameState))
-
-        val state = choosePlantationMenu(gameState, senderState, nonSenderState)
-        promptForInput(state, sender)
-      }
+    case GotBuilding(b) => {
+      senderState.addBuilding(b)
       false
+    }
+
+    case GotGood(g) => {
+      senderState.goods(g) += 1
+      false
+    }
+
+    // The settler conversation.
+    case SelectPlantationExtra => {
+      out.println(s"${senderName}, would you like a plantation from the deck?")
+
+      val state = yesOrNoMenu(gameState, senderState, nonSenderState, PlantationExtraAgreed, NoneSelected)
+      promptForInput(state, sender)
+      true
+    }
+
+    case SelectPlantation => {
+      out.println(s"${senderName}, please choose a plantation.")
+      out.println(showPlantations(gameState))
+
+      val state = choosePlantationMenu(gameState, senderState, nonSenderState)
+      promptForInput(state, sender)
+      true
+    }
+
+    // This appears both in settler, mayor, and builder conversations.
+    case SelectColonist => {
+      out.println(s"${senderName}, would you like an extra colonist?")
+
+      val state = yesOrNoMenu(gameState, senderState, nonSenderState, ColonistSelected, NoneSelected)
+      promptForInput(state, sender)
+      true
+    }
+
+    // The craftsman conversation.
+    case SelectGoodToProduce => {
+      out.println(s"${senderName}, please choose an extra good.")
+
+      val state = chooseExtraGoodMenu(gameState, senderState, nonSenderState)
+      promptForInput(state, sender)
+      true
     }
 
     case _ => {
-      out.println(s"Sorry, I don't know how to handle $req yet...")
+      logger.debug(s"Sorry, I don't know how to handle $msg yet...")
       false
     }
   }
 
   def onEOF() {
-    println(s"end of input, terminating...")
+    logger.debug(s"end of input, terminating...")
     system.shutdown()
   }
 
@@ -193,10 +232,10 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
   def waitForMessage: Receive = {
     case StdinMonitor.EOF => onEOF()
 
-    case StdinMonitor.Input(_) => out.println(s"Waiting to hear from the game manager...")
+    case StdinMonitor.Input(_) => logger.debug(s"Waiting to hear from the game manager...")
 
     case x => {
-      out.println(s"Handling message ${x} from ${sender}")
+      logger.debug(s"Handling message ${x} from ${sender}")
       handleRequest(x, sender)
     }
   }
@@ -215,7 +254,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
           out.println(result.display)
         }
         if (result.message != None) {
-          out.println(s"sending message ${result.message.get} to game...")
+          logger.debug(s"sending message ${result.message.get} to game...")
 
           activePlayer ! result.message.get
         }
@@ -235,7 +274,7 @@ class MenuActor(in: io.Source, out: PrintStream, system: ActorSystem) extends Ac
     case StdinMonitor.EOF => onEOF()
 
     case x => {
-      out.println(s"Queueing message ${x} from ${sender}")
+      logger.debug(s"Queueing message ${x} from ${sender}")
       requestQueue = requestQueue :+ (x, sender)
     }
   }

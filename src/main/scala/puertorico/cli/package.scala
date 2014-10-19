@@ -1,6 +1,7 @@
 package org.puertorico
 
 import java.io.{ BufferedReader, PrintStream }
+import org.slf4j.{ Logger, LoggerFactory }
 import collection.mutable.HashMap
 import org.puertorico._
 
@@ -13,7 +14,7 @@ package object cli {
   case class ActionResult(
     val display:  String,
     val newState: NextState,
-    val message:  Option[Object]
+    val message:  Option[Any]
   )
 
   // The result is Option[MenuState] because the special
@@ -38,10 +39,12 @@ package object cli {
   case class NewState(menu: MenuState) extends NextState
 
   class MenuState(private val initChoices: List[MenuChoice]) {
-    private lazy val choices = initChoices :+ helpChoice
+    lazy val logger = LoggerFactory.getLogger("MenuState")
 
-    // TODO: warn if initChoices contains a binding for '?',
-    // which should be reserved for the help action.
+    if (initChoices exists (_.commandString == "?")) {
+      logger.warn("Trying to re-assign the help shortcut.")
+    }
+    private lazy val choices = initChoices :+ helpChoice
 
     private lazy val actionMap =
       (choices map (x => x.commandString -> x)).toMap
@@ -68,7 +71,13 @@ package object cli {
     def takeAction(act: String) = actionMap(act).action()
 
     def +(other: MenuState) = {
-      // TODO: warn if a binding collides.
+      // warn if a binding collides.
+      val myBindings = (initChoices map (_.commandString)).toSet
+      val otherBindings = (other.initChoices map (_.commandString)).toSet
+      if (!(myBindings intersect otherBindings).isEmpty) {
+        logger.warn("Found a colliding binding.")
+      }
+
       new MenuState(initChoices ++ other.initChoices)
     }
   }
@@ -220,27 +229,7 @@ package object cli {
     new MenuState(choices ++ roleChoices) + defaultMenu(gs, me, other)
   }
 
-  def chooseExtraPlantationMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
-    val yes = MenuChoice(
-      "y",
-      "Yes, take a plantation from the deck.",
-      () => ActionResult("", IdleState, Some(PlantationExtraAgreed))
-    )
-    val no = MenuChoice(
-      "n",
-      "No, thanks.",
-      () => ActionResult("", IdleState, Some(NoneSelected))
-    )
-
-    new MenuState(List(yes, no)) + defaultMenu(gs, me, other)
-  }
-
   def choosePlantationMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
-    // FIXME
-    defaultMenu(gs, me, other)
-  }
-
-  def chooseHospiceSettlerMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
     // FIXME
     defaultMenu(gs, me, other)
   }
@@ -258,14 +247,18 @@ package object cli {
   /**
    * Returns a MenuState allowing the player to select between any non-zero goods in the bundle.
    */
-  def chooseGoodMenu(gb: GoodBundle, nextState: Good => MenuState): MenuState = {
+  def chooseGoodMenu(gb: GoodBundle, nextState: Option[Good => MenuState]): MenuState = {
     def goodChoice(g: Good) = {
       val (name, cmd) = goodNames(g)
-      val next = nextState(g)
+      val next = nextState match {
+        case Some(f) => NewState(f(g))
+        case None => IdleState
+      }
+
       MenuChoice(
         cmd,
         s"Select ${name}.",
-        () => ActionResult(s"You chose ${name}.", NewState(next), Some(g))
+        () => ActionResult(s"You chose ${name}.", next, Some(g))
       )
     }
 
@@ -273,12 +266,16 @@ package object cli {
     new MenuState(choices.toList)
   }
 
-  // TODO: we can be more helpful by only listing possibilities that are actually valid.
-  // Otherwise, they might get stuck in the next menu.
+  // TODO: be more helpful by only listing possibilities that are actually valid.
   def chooseGoodToLoadMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
     val nextState = (g: Good) => chooseShipToLoadMenu(gs, me, other, g)
 
-    chooseGoodMenu(me.goods, nextState)
+    chooseGoodMenu(me.goods, Some(nextState))
+  }
+
+  // TODO: be more helpful by only listing possibilities that are actually valid.
+  def chooseExtraGoodMenu(gs: GameState, me: PlayerState, other: PlayerState): MenuState = {
+    chooseGoodMenu(gs.goodsRemain, None)
   }
 
   def chooseShipToLoadMenu(gs: GameState, me: PlayerState, other: PlayerState, good: Good): MenuState = {
@@ -288,15 +285,21 @@ package object cli {
         case 6 => ("6", "Ship of 6.")
         case 100 => ("w", "Wharf")
       }
-      val next = defaultMenu(gs, me, other)
 
-      MenuChoice(cmd, name, () => ActionResult(s"You chose the ${name}.", NewState(next), Some(s)))
+      MenuChoice(cmd, name, () => ActionResult(s"You chose the ${name}.", IdleState, Some(s)))
     }
 
     val ships = gs.wharf +: gs.ships
     val validShips = ships filter (gs.canShipGoods(good, _, me))
     val choices = validShips map shipChoice
-    new MenuState(choices)
+    new MenuState(choices) + defaultMenu(gs, me, other)
+  }
+
+  def yesOrNoMenu(gs: GameState, me: PlayerState, other: PlayerState, yesMsg: Any, noMsg: Any): MenuState = {
+    val yes = MenuChoice("y", "Yes.", () => ActionResult("", IdleState, Some(yesMsg)))
+    val no = MenuChoice("n", "No.", () => ActionResult("", IdleState, Some(noMsg)))
+
+    new MenuState(List(yes, no)) + defaultMenu(gs, me, other)
   }
 }
 

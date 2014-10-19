@@ -102,6 +102,9 @@ class BuildingState {
 
 }
 
+// TODO: the API for adding buildings makes the
+// client code overcomplicated -- maybe the temporary state can be
+// split off into a separate class?
 class PlayerState {
   var island = new IslandState
   var buildings = new BuildingState
